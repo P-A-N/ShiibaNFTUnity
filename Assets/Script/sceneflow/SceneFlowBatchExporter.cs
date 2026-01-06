@@ -290,14 +290,17 @@ public class SceneFlowBatchExporter : MonoBehaviour
                 continue;
             }
 
-            // Map PLY frame indices to BVH frame indices using frame mapper
+            // Calculate previous point cloud frame based on configured offset
+            int previousPointCloudFrame = GetPreviousPointCloudFrame(frameIndex, datasetConfig);
+
+            // Map both current and previous point cloud frames to BVH frames
             float currentFrameTime = frameIndex * bvhData.FrameTime;
-            float previousFrameTime = (frameIndex - 1) * bvhData.FrameTime;
+            float previousFrameTime = previousPointCloudFrame * bvhData.FrameTime;
 
             int currentBvhFrame = frameMapper.GetTargetFrameForTime(currentFrameTime, bvhData, driftData);
             int previousBvhFrame = frameMapper.GetTargetFrameForTime(previousFrameTime, bvhData, driftData);
 
-            Debug.Log($"[SceneFlowBatchExporter] Frame {frameIndex}: Mapped to BVH frames ({previousBvhFrame}, {currentBvhFrame})");
+            Debug.Log($"[SceneFlowBatchExporter] Point cloud frames ({previousPointCloudFrame}, {frameIndex}) → BVH frames ({previousBvhFrame}, {currentBvhFrame})");
 
             // Calculate bone segments for frame pair using mapped BVH frames
             sceneFlowCalculator.CalculateBoneSegmentsForFramePair(currentBvhFrame, previousBvhFrame);
@@ -407,6 +410,23 @@ public class SceneFlowBatchExporter : MonoBehaviour
         int framesRemaining = totalFramesToExport - framesProcessed;
 
         return avgTimePerFrame * framesRemaining;
+    }
+
+    /// <summary>
+    /// Calculate previous point cloud frame index based on configured scene flow frame offset.
+    /// </summary>
+    /// <param name="currentPointCloudFrame">Current point cloud frame index</param>
+    /// <param name="config">Dataset configuration containing scene flow frame offset</param>
+    /// <returns>Previous point cloud frame index for motion vector calculation</returns>
+    private static int GetPreviousPointCloudFrame(int currentPointCloudFrame, DatasetConfig config)
+    {
+        int frameOffset = config != null ? config.SceneFlowFrameOffset : 1;
+        int previousFrame = Mathf.Max(0, currentPointCloudFrame - frameOffset);
+
+        Debug.Log($"[SceneFlowBatchExporter] Scene flow frame offset={frameOffset}, " +
+                 $"Current frame={currentPointCloudFrame}, Previous frame={previousFrame}");
+
+        return previousFrame;
     }
 
 }

@@ -56,6 +56,8 @@ public class DatasetConfig : ScriptableObject
     [Tooltip("Export scene flow PLY files in ASCII format instead of binary")]
     [SerializeField] private bool sceneFlowSkipExistingFiles = true;
     [Tooltip("Skip existing files during scene flow export")]
+    [SerializeField] private int sceneFlowFrameOffset = 1;
+    [Tooltip("Frame offset for scene flow calculation (based on point cloud frame rate). 1 = compare with previous frame (N-1), 2 = compare with N-2, etc.")]
 
     // Properties
     /// <summary>
@@ -94,6 +96,7 @@ public class DatasetConfig : ScriptableObject
     public int SceneFlowEndFrame => sceneFlowEndFrame;
     public bool SceneFlowExportAsAscii => sceneFlowExportAsAscii;
     public bool SceneFlowSkipExistingFiles => sceneFlowSkipExistingFiles;
+    public int SceneFlowFrameOffset => sceneFlowFrameOffset;
 
     /// <summary>
     /// Get the BVH folder path (relative to project)

@@ -234,8 +234,10 @@ public class SceneFlowCalculator : MonoBehaviour
         // Display previous frame (yellow) if available
         if (currentFrameIndex > 0)
         {
-            int previousFrameIndex = currentFrameIndex - 1;
-            float previousFrameTime = Mathf.Max(0f, (float)currentFrameTime - (1f / bvhData.FrameRate));
+            // Calculate previous BVH frame index based on point cloud frame offset
+            // This maps point cloud frame N-offset back to corresponding BVH frame
+            int previousFrameIndex = GetPreviousPointCloudFrame(currentFrameIndex);
+            float previousFrameTime = previousFrameIndex * bvhData.FrameTime;
 
             DisplayBvhFrame("PreviousFrameBVH", previousFrameIndex, previousFrameTime,
                            positionOffset, rotationOffset, bvhScale, driftCorrectionData);
@@ -548,6 +550,27 @@ public class SceneFlowCalculator : MonoBehaviour
         int frameIndex = frameMapper.GetTargetFrameForTime(timelineTime, bvhData, driftCorrectionData);
         Debug.Log($"[SceneFlowCalculator] Calculated frame index from Timeline time {timelineTime}s: {frameIndex}");
         return frameIndex;
+    }
+
+    /// <summary>
+    /// Calculate previous point cloud frame index based on configured scene flow frame offset.
+    /// </summary>
+    /// <param name="currentPointCloudFrame">Current point cloud frame index</param>
+    /// <returns>Previous point cloud frame index for motion vector calculation</returns>
+    private int GetPreviousPointCloudFrame(int currentPointCloudFrame)
+    {
+        DatasetConfig config = DatasetConfig.GetInstance();
+        int frameOffset = config != null ? config.SceneFlowFrameOffset : 1;
+
+        int previousFrame = Mathf.Max(0, currentPointCloudFrame - frameOffset);
+
+        if (debugMode)
+        {
+            Debug.Log($"[SceneFlowCalculator] Scene flow frame offset={frameOffset}, " +
+                     $"Current frame={currentPointCloudFrame}, Previous frame={previousFrame}");
+        }
+
+        return previousFrame;
     }
 
 
