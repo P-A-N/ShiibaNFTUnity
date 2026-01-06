@@ -45,6 +45,18 @@ public class DatasetConfig : ScriptableObject
     [SerializeField] private bool skipExistingPlyFiles = true;
     [Tooltip("When exporting PLY files, skip frames that already have exported files")]
 
+    [Header("Scene Flow Export Settings")]
+    [SerializeField] private string sceneFlowExportDirectory = "ExportedPLY_SceneFlow";
+    [Tooltip("Output directory for PLY files with scene flow motion vectors")]
+    [SerializeField] private int sceneFlowStartFrame = 1;
+    [Tooltip("Start frame index for scene flow export (inclusive, must be >= 1)")]
+    [SerializeField] private int sceneFlowEndFrame = 0;
+    [Tooltip("End frame index for scene flow export (inclusive, 0 = use total frame count)")]
+    [SerializeField] private bool sceneFlowExportAsAscii = false;
+    [Tooltip("Export scene flow PLY files in ASCII format instead of binary")]
+    [SerializeField] private bool sceneFlowSkipExistingFiles = true;
+    [Tooltip("Skip existing files during scene flow export")]
+
     // Properties
     /// <summary>
     /// Get dataset name from folder name
@@ -77,6 +89,11 @@ public class DatasetConfig : ScriptableObject
     public BvhPlaybackCorrectionKeyframes BvhPlaybackCorrectionKeyframes => bvhDriftCorrectionData;
     public bool ShowDownsampledPointCloud => showDownsampledPointCloud;
     public bool SkipExistingPlyFiles => skipExistingPlyFiles;
+    public string SceneFlowExportDirectory => sceneFlowExportDirectory;
+    public int SceneFlowStartFrame => sceneFlowStartFrame;
+    public int SceneFlowEndFrame => sceneFlowEndFrame;
+    public bool SceneFlowExportAsAscii => sceneFlowExportAsAscii;
+    public bool SceneFlowSkipExistingFiles => sceneFlowSkipExistingFiles;
 
     /// <summary>
     /// Get the BVH folder path (relative to project)

@@ -403,17 +403,29 @@ public class DatasetConfigEditor : Editor
         // Calculate motion vectors using SceneFlowCalculator
         Vector3[] motionVectors = sceneFlowCalculator.CalculateMotionVectorsForMesh(mesh);
 
-        // Generate output file path (use point cloud frame number for filename)
-        string outputDir = System.IO.Path.Combine(UnityEngine.Application.dataPath, "..", "ExportedPLY_SceneFlow_Single");
+        // Get export settings from DatasetConfig
+        string outputDirName = config.SceneFlowExportDirectory;
+        bool exportAsAscii = config.SceneFlowExportAsAscii;
+
+        // Generate output file path with dataset name prefix
+        string outputDir = System.IO.Path.Combine(UnityEngine.Application.dataPath, "..", outputDirName);
         System.IO.Directory.CreateDirectory(outputDir);
-        string filename = $"frame_{currentFrame:D6}_sceneflow.ply";  // currentFrame is point cloud frame
+        string datasetName = config.DatasetName;
+        string filename = $"{datasetName}_sf_{currentFrame:D6}.ply";  // currentFrame is point cloud frame
         string filePath = System.IO.Path.Combine(outputDir, filename);
 
         // Get torso_7 position comments (filename uses point cloud frame, position uses BVH frame)
         string[] headerComments = BvhJointUtility.GetJointPositionComments(currentFrame, currentBvhFrame);
 
         // Export to PLY
-        PlyExporter.ExportToPLY(mesh, motionVectors, filePath, headerComments);
+        if (exportAsAscii)
+        {
+            PlyExporter.ExportToPLY_ASCII(mesh, motionVectors, filePath, headerComments);
+        }
+        else
+        {
+            PlyExporter.ExportToPLY(mesh, motionVectors, filePath, headerComments);
+        }
 
         Debug.Log($"Current frame PLY with scene flow exported to: {filePath}");
         EditorUtility.DisplayDialog("Export Complete",

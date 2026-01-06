@@ -25,25 +25,25 @@ public class SceneFlowBatchExporter : MonoBehaviour
     // MultiPointCloudView is accessed through MultiCameraPointCloudManager
     private MultiPointCloudView multiPointCloudView;
 
-    [Header("Export Settings")]
+    [Header("Export Settings (Deprecated - Use DatasetConfig)")]
     [SerializeField]
-    [Tooltip("Output directory for exported PLY files")]
+    [Tooltip("DEPRECATED: Use DatasetConfig.SceneFlowExportDirectory instead")]
     private string outputDirectory = "ExportedPLY_SceneFlow";
 
     [SerializeField]
-    [Tooltip("Start frame index (inclusive)")]
+    [Tooltip("DEPRECATED: Use DatasetConfig.SceneFlowStartFrame instead")]
     private int startFrame = 1;
 
     [SerializeField]
-    [Tooltip("End frame index (inclusive, 0 = use total frame count)")]
+    [Tooltip("DEPRECATED: Use DatasetConfig.SceneFlowEndFrame instead")]
     private int endFrame = 0;
 
     [SerializeField]
-    [Tooltip("Use ASCII format instead of binary")]
+    [Tooltip("DEPRECATED: Use DatasetConfig.SceneFlowExportAsAscii instead")]
     private bool exportAsAscii = false;
 
     [SerializeField]
-    [Tooltip("Skip existing files during export")]
+    [Tooltip("DEPRECATED: Use DatasetConfig.SceneFlowSkipExistingFiles instead")]
     private bool skipExistingFiles = true;
 
     // Export state
@@ -115,6 +115,27 @@ public class SceneFlowBatchExporter : MonoBehaviour
     }
 
     /// <summary>
+    /// Get export settings from DatasetConfig (preferred) or fallback to local fields
+    /// </summary>
+    private (string outputDir, int start, int end, bool ascii, bool skipExisting) GetExportSettings()
+    {
+        if (datasetConfig != null)
+        {
+            return (
+                datasetConfig.SceneFlowExportDirectory,
+                datasetConfig.SceneFlowStartFrame,
+                datasetConfig.SceneFlowEndFrame,
+                datasetConfig.SceneFlowExportAsAscii,
+                datasetConfig.SceneFlowSkipExistingFiles
+            );
+        }
+
+        // Fallback to local serialized fields
+        Debug.LogWarning("[SceneFlowBatchExporter] Using deprecated local export settings. Please configure in DatasetConfig.");
+        return (outputDirectory, startFrame, endFrame, exportAsAscii, skipExistingFiles);
+    }
+
+    /// <summary>
     /// Start batch export process
     /// </summary>
     public void StartBatchExport()
@@ -171,40 +192,43 @@ public class SceneFlowBatchExporter : MonoBehaviour
             return;
         }
 
+        // Get export settings from DatasetConfig or local fields
+        var (outputDir, start, end, ascii, skipExisting) = GetExportSettings();
+
         // Determine frame range (use PLY file count as max)
         int maxFrame = plyFiles.Length - 1;
-        int actualEndFrame = endFrame > 0 ? Mathf.Min(endFrame, maxFrame) : maxFrame;
+        int actualEndFrame = end > 0 ? Mathf.Min(end, maxFrame) : maxFrame;
 
-        Debug.Log($"[SceneFlowBatchExporter] Frame range: {startFrame} to {actualEndFrame} (total PLY files: {plyFiles.Length})");
+        Debug.Log($"[SceneFlowBatchExporter] Frame range: {start} to {actualEndFrame} (total PLY files: {plyFiles.Length})");
 
-        if (startFrame < 1)
+        if (start < 1)
         {
             Debug.LogError("[SceneFlowBatchExporter] Start frame must be >= 1 (need previous frame for motion vectors)");
             return;
         }
 
-        if (actualEndFrame < startFrame)
+        if (actualEndFrame < start)
         {
-            Debug.LogError($"[SceneFlowBatchExporter] Invalid frame range: {startFrame} to {actualEndFrame}");
+            Debug.LogError($"[SceneFlowBatchExporter] Invalid frame range: {start} to {actualEndFrame}");
             return;
         }
 
         // Create output directory
-        string absoluteOutputPath = Path.Combine(Application.dataPath, "..", outputDirectory);
+        string absoluteOutputPath = Path.Combine(Application.dataPath, "..", outputDir);
         Directory.CreateDirectory(absoluteOutputPath);
 
         // Initialize export state
-        currentExportFrame = startFrame;
-        totalFramesToExport = actualEndFrame - startFrame + 1;
+        currentExportFrame = start;
+        totalFramesToExport = actualEndFrame - start + 1;
         exportStartTime = Time.realtimeSinceStartup;
         isExporting = true;
 
-        Debug.Log($"[SceneFlowBatchExporter] Starting batch export: frames {startFrame} to {actualEndFrame} ({totalFramesToExport} frames)");
+        Debug.Log($"[SceneFlowBatchExporter] Starting batch export: frames {start} to {actualEndFrame} ({totalFramesToExport} frames)");
         Debug.Log($"[SceneFlowBatchExporter] Output directory: {absoluteOutputPath}");
-        Debug.Log($"[SceneFlowBatchExporter] Format: {(exportAsAscii ? "ASCII" : "Binary")}");
+        Debug.Log($"[SceneFlowBatchExporter] Format: {(ascii ? "ASCII" : "Binary")}");
 
         // Start coroutine
-        StartCoroutine(BatchExportCoroutine(actualEndFrame));
+        StartCoroutine(BatchExportCoroutine(actualEndFrame, outputDir, start, ascii, skipExisting));
     }
 
     /// <summary>
@@ -223,16 +247,16 @@ public class SceneFlowBatchExporter : MonoBehaviour
     /// <summary>
     /// Coroutine for batch export process
     /// </summary>
-    private IEnumerator BatchExportCoroutine(int actualEndFrame)
+    private IEnumerator BatchExportCoroutine(int actualEndFrame, string outputDir, int start, bool ascii, bool skipExisting)
     {
-        string absoluteOutputPath = Path.Combine(Application.dataPath, "..", outputDirectory);
+        string absoluteOutputPath = Path.Combine(Application.dataPath, "..", outputDir);
 
         // Get BVH data and drift correction for frame mapping
         BvhData bvhData = BvhDataCache.GetBvhData();
         BvhPlaybackCorrectionKeyframes driftData = datasetConfig.BvhPlaybackCorrectionKeyframes;
         BvhPlaybackFrameMapper frameMapper = new BvhPlaybackFrameMapper();
 
-        for (int frameIndex = startFrame; frameIndex <= actualEndFrame; frameIndex++)
+        for (int frameIndex = start; frameIndex <= actualEndFrame; frameIndex++)
         {
             if (!isExporting)
             {
@@ -242,12 +266,13 @@ public class SceneFlowBatchExporter : MonoBehaviour
 
             currentExportFrame = frameIndex;
 
-            // Generate output file path
-            string filename = $"frame_{frameIndex:D6}_sceneflow.ply";
+            // Generate output file path with dataset name prefix
+            string datasetName = datasetConfig.DatasetName;
+            string filename = $"{datasetName}_sf_{frameIndex:D6}.ply";
             string filePath = Path.Combine(absoluteOutputPath, filename);
 
             // Skip if file exists
-            if (skipExistingFiles && File.Exists(filePath))
+            if (skipExisting && File.Exists(filePath))
             {
                 Debug.Log($"[SceneFlowBatchExporter] Skipping existing file: {filename}");
                 continue;
@@ -284,7 +309,7 @@ public class SceneFlowBatchExporter : MonoBehaviour
             string[] headerComments = BvhJointUtility.GetJointPositionComments(frameIndex, currentBvhFrame);
 
             // Export to PLY
-            if (exportAsAscii)
+            if (ascii)
             {
                 PlyExporter.ExportToPLY_ASCII(mesh, motionVectors, filePath, headerComments);
             }
@@ -294,12 +319,12 @@ public class SceneFlowBatchExporter : MonoBehaviour
             }
 
             // Log progress
-            float progress = (float)(frameIndex - startFrame + 1) / totalFramesToExport * 100f;
+            float progress = (float)(frameIndex - start + 1) / totalFramesToExport * 100f;
             float elapsed = Time.realtimeSinceStartup - exportStartTime;
-            float estimatedTotal = elapsed / (frameIndex - startFrame + 1) * totalFramesToExport;
+            float estimatedTotal = elapsed / (frameIndex - start + 1) * totalFramesToExport;
             float remaining = estimatedTotal - elapsed;
 
-            Debug.Log($"[SceneFlowBatchExporter] Progress: {progress:F1}% ({frameIndex - startFrame + 1}/{totalFramesToExport}) - " +
+            Debug.Log($"[SceneFlowBatchExporter] Progress: {progress:F1}% ({frameIndex - start + 1}/{totalFramesToExport}) - " +
                      $"Elapsed: {elapsed:F1}s, Remaining: ~{remaining:F1}s");
 
             // Yield to avoid blocking
