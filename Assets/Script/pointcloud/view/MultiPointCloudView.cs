@@ -129,6 +129,20 @@ public class MultiPointCloudView : MonoBehaviour
         return unifiedMesh;
     }
 
+    /// <summary>
+    /// Get the current unified point cloud mesh from UnifiedPointCloudViewer
+    /// Used by SceneFlowCalculator and exporters
+    /// </summary>
+    public Mesh GetCurrentMesh()
+    {
+        if (unifiedViewer != null)
+        {
+            MeshFilter meshFilter = unifiedViewer.GetComponent<MeshFilter>();
+            return meshFilter != null ? meshFilter.sharedMesh : null;
+        }
+        return null;
+    }
+
     public int GetCameraCount()
     {
         return frameControllers.Count;
@@ -167,7 +181,6 @@ public class MultiPointCloudView : MonoBehaviour
             // Check if loaded mesh has motion vectors
             List<Vector3> uv1Check = new List<Vector3>();
             loadedMesh.GetUVs(1, uv1Check);
-            Debug.Log($"[MultiPointCloudView] Loaded mesh has {uv1Check.Count} UV1 entries (motion vectors)");
 
             UpdateUnifiedMesh(loadedMesh);
         }

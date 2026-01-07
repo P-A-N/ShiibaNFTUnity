@@ -494,13 +494,28 @@ public class TimelineController : MonoBehaviour
     void UpdatePlaybackStatus()
     {
         bool isPlayingNow = (timeline.state == PlayState.Playing);
-        
+
         // Log state changes
         if (isPlayingNow != wasPlayingLastFrame && showDebugLogs)
         {
-            Debug.Log($"Timeline state changed: {(isPlayingNow ? "PLAYING" : "PAUSED/STOPPED")}");
+            // Calculate frame number from timeline time
+            // Note: This is a rough estimate assuming 30 FPS default; actual frame rate may vary per dataset
+            float currentTime = (float)timeline.time;
+            int estimatedFrameNumber = Mathf.FloorToInt(currentTime * 30f); // Default to 30 FPS estimate
+
+            // Try to get actual frame rate from BVH data if available
+            if (bvhPlayableAsset != null)
+            {
+                BvhData bvhData = bvhPlayableAsset.GetBvhData();
+                if (bvhData != null)
+                {
+                    estimatedFrameNumber = Mathf.FloorToInt(currentTime * bvhData.FrameRate);
+                }
+            }
+
+            Debug.Log($"Timeline state changed: {(isPlayingNow ? "PLAYING" : "PAUSED/STOPPED")} | Time: {currentTime:F3}s | Frame: {estimatedFrameNumber}");
         }
-        
+
         wasPlayingLastFrame = isPlayingNow;
     }
     

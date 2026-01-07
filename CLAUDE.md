@@ -200,6 +200,25 @@ SampleScene (or your scene name)
 - `SceneFlowCalculator`: On `SceneFlow` GameObject
 - `BvhSkeletonVisualizer`: On `BVH_Visuals` GameObject under `BVH_Character`
 
+**IMPORTANT - Runtime-Created GameObjects:**
+
+⚠️ **`MultiPointCloudView_PLY` and its children are created dynamically at runtime by `MultiCameraPointCloudManager`** - they do NOT exist in the scene hierarchy during edit mode!
+
+- **MultiPointCloudView_PLY**: Created by processing mode handlers (`PlyModeHandler`, `BinaryModeHandler`) when the scene starts
+- **UnifiedPointCloudViewer**: Created by `MultiPointCloudView.SetupUnifiedViewer()` as a child of MultiPointCloudView_PLY
+- **How to get reference**: Use `FindFirstObjectByType<MultiPointCloudView>()` at runtime, or get via `MultiCameraPointCloudManager.GetMultiPointCloudView()`
+- **Do NOT assign in Inspector**: These components cannot be assigned in the Inspector during edit mode since they don't exist yet
+
+**Example - Getting MultiPointCloudView at runtime:**
+```csharp
+// Option 1: Auto-find (recommended for most components)
+MultiPointCloudView view = FindFirstObjectByType<MultiPointCloudView>();
+
+// Option 2: Get via manager
+MultiCameraPointCloudManager manager = FindFirstObjectByType<MultiCameraPointCloudManager>();
+MultiPointCloudView view = manager.GetMultiPointCloudView();
+```
+
 **Coordinate Space:**
 - Point cloud vertices are in camera space by default
 - The world/MultiPointCloudView_PLY offset hierarchy ensures local vertex positions align with world space bone positions
@@ -599,6 +618,32 @@ The system handles multi-camera sensor fusion through:
 - [Assets/Script/sceneflow/Editor/SceneFlowCalculatorEditor.cs](Assets/Script/sceneflow/Editor/SceneFlowCalculatorEditor.cs) - Editor UI
 
 **Recent Focus:** Debugging bone segmentation algorithm; see commit 81be31f for latest attempts.
+
+### MultiPointCloudView Runtime Initialization Timing Issue (2025-01-07)
+
+**Status:** Known Limitation - Not a Bug
+
+**Symptom:** `[TimelineDrivenSceneFlowExporter] MultiPointCloudView not found!` error when starting export immediately after entering Play mode.
+
+**Root Cause:**
+- `MultiPointCloudView_PLY` GameObject and its `MultiPointCloudView` component are created dynamically at runtime by `MultiCameraPointCloudManager`
+- The creation happens during `Start()` or when processing mode handler initializes
+- If `TimelineDrivenSceneFlowExporter.StartExport()` is called before this initialization completes, the component doesn't exist yet
+
+**Files Involved:**
+- [Assets/Script/sceneflow/TimelineDrivenSceneFlowExporter.cs](Assets/Script/sceneflow/TimelineDrivenSceneFlowExporter.cs) - Uses auto-find in `Start()` to get MultiPointCloudView reference
+- [Assets/Script/pointcloud/MultiCamPointCloudManager.cs](Assets/Script/pointcloud/MultiCamPointCloudManager.cs) - Creates MultiPointCloudView_PLY at runtime
+- [Assets/Script/pointcloud/handler/PlyModeHandler.cs](Assets/Script/pointcloud/handler/PlyModeHandler.cs) - Instantiates MultiPointCloudView during initialization
+
+**Workaround:**
+- Wait 1-2 seconds after entering Play mode before clicking "Start Export" button
+- The component will be available once the scene is fully initialized
+- This is expected behavior due to the runtime creation architecture
+
+**Why This Isn't Fixed:**
+- The runtime creation pattern is intentional and part of the core architecture (see "IMPORTANT - Runtime-Created GameObjects" section above)
+- Adding complex initialization checks would add unnecessary complexity
+- Simple user workflow adjustment (wait for initialization) is sufficient
 
 ## Recent Additions & Updates
 

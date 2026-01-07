@@ -64,6 +64,11 @@ public class SceneFlowCalculator : MonoBehaviour
     [Tooltip("Enable debug mode for logging and visualization")]
     private bool debugMode = true;
 
+    [Header("Dual BVH Visualization")]
+    [SerializeField]
+    [Tooltip("Enable Gizmo visualization of CurrentFrameBVH and PreviousFrameBVH skeletons")]
+    private bool showDualBvhVisualization = true;
+
     [Header("Point Cloud Motion Vector Visualization")]
     [SerializeField]
     [Tooltip("Show motion vectors for point cloud points")]
@@ -149,6 +154,9 @@ public class SceneFlowCalculator : MonoBehaviour
 
     // Frame tracking
     private double currentFrameTime = 0f;
+    private int lastCurrentBvhFrame = -1;
+    private int lastPreviousBvhFrame = -1;
+
 
     /// <summary>
     /// Clear all cached frame data
@@ -175,19 +183,43 @@ public class SceneFlowCalculator : MonoBehaviour
         // Get BVH data from BvhDataCache cache (initialized by MultiCameraPointCloudManager)
         bvhData = BvhDataCache.GetBvhData();
 
-        if (bvhData != null && debugMode)
-            Debug.Log("[SceneFlowCalculator] BvhData loaded from BvhDataCache");
-
-        if (bvhData == null)
-            Debug.LogError("[SceneFlowCalculator] BvhData not initialized. MultiCameraPointCloudManager must be in scene to initialize BvhDataCache.");
+        if (bvhData != null)
+        {
+            string bvhPath = BvhDataCache.GetCachedBvhPath();
+            Debug.Log($"[SceneFlowCalculator] ✓ BvhData loaded from BvhDataCache");
+            Debug.Log($"[SceneFlowCalculator]   BVH File: {bvhPath}");
+            Debug.Log($"[SceneFlowCalculator]   Frame Count: {bvhData.FrameCount}, Frame Time: {bvhData.FrameTime}s, FPS: {1f / bvhData.FrameTime:F2}");
+        }
+        else
+        {
+            Debug.LogError("[SceneFlowCalculator] ✗ BvhData not initialized. MultiCameraPointCloudManager must be in scene to initialize BvhDataCache.");
+        }
     }
 
     /// <summary>
-    /// Show scene flow for the current BVH frame.
-    /// Called when "Show Scene Flow" button is pressed in the Inspector.
-    /// Applies same position offset and drift correction as BVH_Visuals for alignment.
+    /// Calculate scene flow motion vectors (no Gizmo visualization overhead)
+    /// Use this for programmatic access (e.g., batch export)
+    /// </summary>
+    public void CalculateSceneFlow()
+    {
+        Debug.Log("[SceneFlowCalculator] CalculateSceneFlow() called - starting calculation...");
+        CalculateSceneFlowInternal(enableGizmoVisualization: false);
+    }
+
+    /// <summary>
+    /// Calculate scene flow and enable Gizmo visualization in Scene view
+    /// Called by Inspector "Show Scene Flow" button
     /// </summary>
     public void OnShowSceneFlow()
+    {
+        CalculateSceneFlowInternal(enableGizmoVisualization: true);
+    }
+
+    /// <summary>
+    /// Core scene flow calculation logic
+    /// </summary>
+    /// <param name="enableGizmoVisualization">If true, stores references for OnDrawGizmos(); if false, skips Gizmo overhead</param>
+    private void CalculateSceneFlowInternal(bool enableGizmoVisualization)
     {
         ClearCachedData();
 
@@ -220,16 +252,26 @@ public class SceneFlowCalculator : MonoBehaviour
         int currentFrameIndex = GetBvhFrameIndexMapped();
         currentFrameTime = TimelineUtil.GetCurrentTimelineTime();
 
+        // Store for external access (e.g., exporter logging)
+        lastCurrentBvhFrame = currentFrameIndex;
+
+
         // Display current frame (blue)
         DisplayBvhFrame("CurrentFrameBVH", currentFrameIndex, (float)currentFrameTime,
                        positionOffset, rotationOffset, bvhScale, driftCorrectionData);
-        currentFrameContainer = transform.Find("CurrentFrameBVH");
 
         // Gather bone definitions from BVH data (template only)
         GatherBoneDefinitionsFromBvhData();
 
-        // Link bone definitions to current frame transforms
-        currentFrameBones = LinkBoneDefinitionsToFrame(currentFrameContainer);
+        // Find the current frame container and link bone definitions
+        Transform currentContainer = transform.Find("CurrentFrameBVH");
+        currentFrameBones = LinkBoneDefinitionsToFrame(currentContainer);
+
+        // Only store container reference if Gizmo visualization is enabled
+        if (enableGizmoVisualization)
+        {
+            currentFrameContainer = currentContainer;
+        }
 
         // Display previous frame (yellow) if available
         if (currentFrameIndex > 0)
@@ -239,12 +281,23 @@ public class SceneFlowCalculator : MonoBehaviour
             int previousFrameIndex = GetPreviousPointCloudFrame(currentFrameIndex);
             float previousFrameTime = previousFrameIndex * bvhData.FrameTime;
 
+            // Store for external access (e.g., exporter logging)
+            lastPreviousBvhFrame = previousFrameIndex;
+
+            Debug.Log($"[SceneFlowCalculator] PreviousFrameBVH → Frame {previousFrameIndex}");
+
             DisplayBvhFrame("PreviousFrameBVH", previousFrameIndex, previousFrameTime,
                            positionOffset, rotationOffset, bvhScale, driftCorrectionData);
-            previousFrameContainer = transform.Find("PreviousFrameBVH");
 
-            // Link bone definitions to previous frame transforms (for segmentation)
-            previousFrameBones = LinkBoneDefinitionsToFrame(previousFrameContainer);
+            // Find the previous frame container and link bone definitions
+            Transform previousContainer = transform.Find("PreviousFrameBVH");
+            previousFrameBones = LinkBoneDefinitionsToFrame(previousContainer);
+
+            // Only store container reference if Gizmo visualization is enabled
+            if (enableGizmoVisualization)
+            {
+                previousFrameContainer = previousContainer;
+            }
 
             // Calculate motion vectors for visualization
             CalculateJointMotionVectors();
@@ -255,11 +308,13 @@ public class SceneFlowCalculator : MonoBehaviour
             previousFrameBones.Clear();
         }
 
-        // Calculate and cache bone segment data for visualization
+        // Calculate and cache bone segment data (required for motion vector calculation)
         CacheSegmentDataForVisualization();
 
         // Calculate point cloud motion vectors
         CalculatePointCloudMotionVectors();
+
+        Debug.Log($"[SceneFlowCalculator] ✓ Scene flow calculation finished for frame {currentFrameIndex} (motion vectors ready for export)");
     }
 
     /// <summary>
@@ -344,6 +399,11 @@ public class SceneFlowCalculator : MonoBehaviour
             return;
         }
 
+        // Compare CurrentFrameBVH with BVH_Visuals before starting nearest neighbor search
+        CompareCurrentFrameWithBvhVisuals();
+
+        Debug.Log($"[SceneFlowCalculator] Starting nearest neighbor search: {vertices.Length} points × {segments.Length} bone segments (K={kNearestNeighbors})");
+
         // Calculate motion vectors using K-NN or nearest-neighbor algorithm
         pointCloudPositions = vertices;
 
@@ -400,13 +460,6 @@ public class SceneFlowCalculator : MonoBehaviour
 
             // Clear K-nearest info when not using K-NN
             kNearestInfoPerPoint = null;
-        }
-
-        if (debugMode)
-        {
-            string algorithmName = useWeightedInterpolation ? $"K-NN (K={kNearestNeighbors})" : "nearest-neighbor";
-            string normalizationStatus = normalizeMotionMagnitudes ? " with normalization" : "";
-            Debug.Log($"[SceneFlowCalculator] Calculated motion vectors for {vertices.Length} points using {segments.Length} bone segments ({algorithmName}{normalizationStatus})");
         }
     }
 
@@ -491,22 +544,17 @@ public class SceneFlowCalculator : MonoBehaviour
     }
 
     /// <summary>
-    /// Display a BVH frame with specified container name and time
-    /// Handles creation/destruction of container and attachment of BVH skeleton
+    /// Display a BVH frame by creating a temporary skeleton with frame data applied
     /// </summary>
     private void DisplayBvhFrame(string containerName, int frameIndex, float frameTime,
                                  Vector3 positionOffset, Vector3 rotationOffset, Vector3 bvhScale,
                                  BvhPlaybackCorrectionKeyframes driftCorrectionData)
     {
-        // Remove existing container if present
+        // Clean up old container if it exists (search by name since cached refs are cleared)
         Transform existingContainer = transform.Find(containerName);
         if (existingContainer != null)
         {
             DestroyImmediate(existingContainer.gameObject);
-            if (containerName == "CurrentFrameBVH")
-                currentFrameContainer = null;
-            else if (containerName == "PreviousFrameBVH")
-                previousFrameContainer = null;
         }
 
         // Create new container
@@ -514,25 +562,31 @@ public class SceneFlowCalculator : MonoBehaviour
         Transform container = containerGO.transform;
         container.SetParent(transform, false);
 
-        // Apply drift correction
-        Vector3 correctedPos = BvhPlaybackTransformCorrector.GetCorrectedRootPosition(frameTime, driftCorrectionData, positionOffset);
-        Quaternion correctedRot = BvhPlaybackTransformCorrector.GetCorrectedRootRotation(frameTime, driftCorrectionData, rotationOffset);
-        container.localPosition = correctedPos;
-        container.localRotation = correctedRot;
-        container.localScale = bvhScale;
-
-        // Create BVH skeleton
-        Transform skeleton = CreateTemporaryBvhSkeletonWithScale(frameIndex);
-        if (skeleton != null)
-        {
-            skeleton.SetParent(container, false);
-            Debug.Log($"[SceneFlowCalculator] {containerName} (frame {frameIndex}) created");
-        }
+        // Store reference for next cleanup
+        if (containerName == "CurrentFrameBVH")
+            currentFrameContainer = container;
         else
+            previousFrameContainer = container;
+
+        // Create temporary skeleton with frame data
+        Transform tempSkeleton = CreateTemporaryBvhSkeletonWithScale(frameIndex);
+        if (tempSkeleton == null)
         {
             Debug.LogError($"[SceneFlowCalculator] Failed to create skeleton for {containerName}");
-            Destroy(containerGO);
+            return;
         }
+
+        // Parent skeleton to container
+        tempSkeleton.SetParent(container, false);
+
+        // Apply drift correction in LOCAL space to the container
+        Vector3 correctedPos = BvhPlaybackTransformCorrector.GetCorrectedRootPosition(frameTime, driftCorrectionData, positionOffset);
+        Quaternion correctedRot = BvhPlaybackTransformCorrector.GetCorrectedRootRotation(frameTime, driftCorrectionData, rotationOffset);
+
+        container.SetLocalPositionAndRotation(correctedPos, correctedRot);
+        container.localScale = bvhScale;
+
+        Debug.Log($"[SceneFlowCalculator] {containerName} created at frame {frameIndex}");
     }
 
     /// <summary>
@@ -585,9 +639,6 @@ public class SceneFlowCalculator : MonoBehaviour
 
         // Get all joints from BVH data in depth-first order
         bvhJoints = bvhData.GetAllJoints();
-
-        if (debugMode)
-            Debug.Log($"[SceneFlowCalculator] Loaded {bvhJoints.Count} bones from BVH data");
     }
 
     /// <summary>
@@ -624,9 +675,6 @@ public class SceneFlowCalculator : MonoBehaviour
                 boneIndex++;
             }
         }
-
-        if (debugMode)
-            Debug.Log($"[SceneFlowCalculator] Created {templateBones.Count} template bone definitions from BVH hierarchy");
     }
 
     /// <summary>
@@ -765,10 +813,36 @@ public class SceneFlowCalculator : MonoBehaviour
     }
 
     /// <summary>
+    /// Recursively search for a joint by name in the transform hierarchy
+    /// </summary>
+    private Transform FindJointRecursive(Transform parent, string jointName)
+    {
+        if (parent == null)
+            return null;
+
+        // Check if this transform matches the joint name
+        if (parent.name == jointName)
+            return parent;
+
+        // Recursively search children
+        foreach (Transform child in parent)
+        {
+            Transform found = FindJointRecursive(child, jointName);
+            if (found != null)
+                return found;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Draw skeleton visualization in Scene view using Gizmos
     /// </summary>
     private void OnDrawGizmos()
     {
+        if (!showDualBvhVisualization)
+            return; // Skip all Gizmo drawing
+
         if (currentFrameContainer != null && currentFrameContainer.gameObject != null)
             DrawBvhContainerStructure(currentFrameContainer, Color.blue, 0.02f);
 
@@ -864,9 +938,6 @@ public class SceneFlowCalculator : MonoBehaviour
 
             linkedBones.Add(boneDef);
         }
-
-        if (debugMode)
-            Debug.Log($"[SceneFlowCalculator] Linked {linkedCount}/{templateBones.Count} bone transforms to {frameContainer.name}");
 
         return linkedBones;
     }
@@ -1367,6 +1438,179 @@ public class SceneFlowCalculator : MonoBehaviour
         return motionVectors;
     }
 
+    /// <summary>
+    /// Get the motion vectors for the current point cloud after OnShowSceneFlow() was called
+    /// Used by Timeline-driven exporter to capture calculated motion vectors
+    /// </summary>
+    public Vector3[] GetCurrentMotionVectors()
+    {
+        if (pointCloudMotionVectors == null || pointCloudMotionVectors.Length == 0)
+        {
+            Debug.LogWarning("[SceneFlowCalculator] No motion vectors calculated yet. Call OnShowSceneFlow() first.");
+            return new Vector3[0];
+        }
+
+        return pointCloudMotionVectors;
+    }
+
+    /// <summary>
+    /// Get the point cloud positions corresponding to motion vectors
+    /// Used by Timeline-driven exporter to get vertex positions
+    /// </summary>
+    public Vector3[] GetCurrentPointCloudPositions()
+    {
+        if (pointCloudPositions == null || pointCloudPositions.Length == 0)
+        {
+            Debug.LogWarning("[SceneFlowCalculator] No point cloud positions available. Call OnShowSceneFlow() first.");
+            return new Vector3[0];
+        }
+
+        return pointCloudPositions;
+    }
+
+    /// <summary>
+    /// Get the current BVH frame number used in the last OnShowSceneFlow() call
+    /// Used by Timeline-driven exporter for logging
+    /// </summary>
+    public int GetLastCurrentBvhFrame()
+    {
+        return lastCurrentBvhFrame;
+    }
+
+    /// <summary>
+    /// Get the previous BVH frame number used in the last OnShowSceneFlow() call
+    /// Used by Timeline-driven exporter for logging
+    /// </summary>
+    public int GetLastPreviousBvhFrame()
+    {
+        return lastPreviousBvhFrame;
+    }
+
+    /// <summary>
+    /// Compare joint positions between CurrentFrameBVH (temp skeleton) and BVH_Visuals (main character)
+    /// Called before nearest neighbor search to verify skeleton alignment
+    /// </summary>
+    private void CompareCurrentFrameWithBvhVisuals()
+    {
+        // Find BVH_Character/root (main character skeleton)
+        GameObject bvhCharacter = GameObject.Find("BVH_Character");
+        if (bvhCharacter == null)
+        {
+            Debug.LogWarning("[SceneFlowCalculator] BVH_Character not found - skipping joint comparison");
+            return;
+        }
+
+        Transform bvhVisualsRoot = bvhCharacter.transform.Find("root");
+        if (bvhVisualsRoot == null)
+        {
+            Debug.LogWarning("[SceneFlowCalculator] BVH_Character/root not found - skipping joint comparison");
+            return;
+        }
+
+        // Find CurrentFrameBVH (temp skeleton created by SceneFlowCalculator)
+        Transform currentFrameContainer = transform.Find("CurrentFrameBVH");
+        if (currentFrameContainer == null)
+        {
+            Debug.LogWarning("[SceneFlowCalculator] CurrentFrameBVH not found - skipping joint comparison");
+            return;
+        }
+
+        // Get the temp skeleton root (TempBvhSkeleton_N)
+        if (currentFrameContainer.childCount == 0)
+        {
+            Debug.LogWarning("[SceneFlowCalculator] CurrentFrameBVH has no children - skipping joint comparison");
+            return;
+        }
+
+        Transform tempSkeletonRoot = currentFrameContainer.GetChild(0);
+        if (tempSkeletonRoot.childCount == 0)
+        {
+            Debug.LogWarning("[SceneFlowCalculator] CurrentFrameBVH temp skeleton has no children - skipping joint comparison");
+            return;
+        }
+
+        // Get the actual BVH root joint (should match bvhVisualsRoot.name)
+        Transform currentFrameBvhRoot = tempSkeletonRoot.GetChild(0);
+
+        Debug.Log($"[SceneFlowCalculator] === Comparing Joint Positions ===");
+        Debug.Log($"[SceneFlowCalculator] BVH_Visuals root: {bvhVisualsRoot.name} at {bvhVisualsRoot.position}");
+        Debug.Log($"[SceneFlowCalculator] CurrentFrameBVH root: {currentFrameBvhRoot.name} at {currentFrameBvhRoot.position}");
+
+        int totalJoints = 0;
+        int matchingJoints = 0;
+        float maxPositionError = 0f;
+        string maxErrorJoint = "";
+
+        // Recursively compare all joints
+        CompareJointRecursive(bvhVisualsRoot, currentFrameBvhRoot, ref totalJoints, ref matchingJoints, ref maxPositionError, ref maxErrorJoint);
+
+        Debug.Log($"[SceneFlowCalculator] === Comparison Results ===");
+        Debug.Log($"[SceneFlowCalculator] Total joints compared: {totalJoints}");
+        Debug.Log($"[SceneFlowCalculator] Matching positions (< 0.0001m): {matchingJoints}");
+        Debug.Log($"[SceneFlowCalculator] Mismatched positions: {totalJoints - matchingJoints}");
+        Debug.Log($"[SceneFlowCalculator] Max position error: {maxPositionError:F6}m at joint '{maxErrorJoint}'");
+
+        if (matchingJoints == totalJoints)
+        {
+            Debug.Log($"[SceneFlowCalculator] ✓ All joint positions match!");
+        }
+        else
+        {
+            Debug.LogWarning($"[SceneFlowCalculator] ✗ {totalJoints - matchingJoints} joints have position mismatches");
+        }
+    }
+
+    /// <summary>
+    /// Recursively compare joint positions between two skeleton hierarchies
+    /// </summary>
+    private void CompareJointRecursive(Transform bvhVisuals, Transform currentFrameVisuals,
+                                       ref int totalJoints, ref int matchingJoints,
+                                       ref float maxPositionError, ref string maxErrorJoint)
+    {
+        if (bvhVisuals == null || currentFrameVisuals == null)
+            return;
+
+        totalJoints++;
+
+        Vector3 bvhPos = bvhVisuals.position;
+        Vector3 currentFramePos = currentFrameVisuals.position;
+        float positionError = Vector3.Distance(bvhPos, currentFramePos);
+
+        const float EPSILON = 0.0001f;
+        bool isMatch = positionError < EPSILON;
+
+        if (isMatch)
+        {
+            matchingJoints++;
+        }
+        else
+        {
+            Debug.LogWarning($"[SceneFlowCalculator] Position mismatch at '{bvhVisuals.name}': " +
+                           $"BVH_Visuals={bvhPos}, CurrentFrame={currentFramePos}, Error={positionError:F6}m");
+        }
+
+        if (positionError > maxPositionError)
+        {
+            maxPositionError = positionError;
+            maxErrorJoint = bvhVisuals.name;
+        }
+
+        // Compare children (match by name)
+        foreach (Transform bvhChild in bvhVisuals)
+        {
+            Transform currentFrameChild = currentFrameVisuals.Find(bvhChild.name);
+            if (currentFrameChild != null)
+            {
+                CompareJointRecursive(bvhChild, currentFrameChild, ref totalJoints, ref matchingJoints, ref maxPositionError, ref maxErrorJoint);
+            }
+            else
+            {
+                Debug.LogWarning($"[SceneFlowCalculator] Joint '{bvhChild.name}' exists in BVH_Visuals but not in CurrentFrameBVH");
+                totalJoints++;
+            }
+        }
+    }
+
     #region K-NN Motion Vector Interpolation
 
     /// <summary>
@@ -1647,12 +1891,6 @@ public class SceneFlowCalculator : MonoBehaviour
             weights = weights
         };
 
-        // Debug: Log weights for first few points
-        if (debugMode && UnityEngine.Random.value < 0.001f) // Log 0.1% of points
-        {
-            string weightsStr = string.Join(", ", System.Array.ConvertAll(weights, w => w.ToString("F3")));
-            Debug.Log($"[K-NN Debug] Point weights: [{weightsStr}], sum={System.Linq.Enumerable.Sum(weights):F3}");
-        }
 
         // Weighted interpolation
         Vector3 result = Vector3.zero;
@@ -1719,8 +1957,6 @@ public class SceneFlowCalculator : MonoBehaviour
             motionVectors[i] = direction * normalizedMag;
         }
 
-        if (debugMode)
-            Debug.Log($"[SceneFlowCalculator] Normalized motion vector magnitudes: [{minMagnitude:F6}, {maxMagnitude:F6}] → [0.0, 1.0]");
     }
 
     /// <summary>

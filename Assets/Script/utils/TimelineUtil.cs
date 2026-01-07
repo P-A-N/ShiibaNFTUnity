@@ -58,6 +58,7 @@ public static class TimelineUtil
 
     /// <summary>
     /// Seek timeline to specific time (seconds)
+    /// Forces immediate evaluation to ensure BVH_Character updates synchronously
     /// </summary>
     /// <param name="timeInSeconds">Target time in seconds</param>
     public static void SeekToTime(double timeInSeconds)

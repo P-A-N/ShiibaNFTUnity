@@ -471,19 +471,70 @@ public class BvhPlaybackCorrectionKeyframesEditor : Editor
                     }
                 }
 
-                // Update the new keyframe with current time and frame only
-                // Position and rotation remain at default (0,0,0) for manual adjustment
+                // Update the new keyframe with current time and frame
                 newKeyframe.timelineTime = currentTime;
                 newKeyframe.bvhFrameNumber = currentFrame;
 
-                // Mark as dirty to save changes
-                EditorUtility.SetDirty(driftCorrectionData);
-
-                // Sort keyframes array by timeline time
-                // Must apply first to save current changes, then sort, then update
+                // Sort keyframes first to determine position in the sorted list
                 serializedObject.ApplyModifiedPropertiesWithoutUndo();
                 SortKeyframesByTime();
                 serializedObject.ApplyModifiedPropertiesWithoutUndo();
+
+                // After sorting, get sorted list and find the new keyframe's position
+                var sortedKeyframes = driftCorrectionData.GetAllKeyframes();
+                int newKeyframeIndex = sortedKeyframes.FindIndex(kf =>
+                    Mathf.Approximately((float)kf.timelineTime, (float)currentTime) &&
+                    kf.bvhFrameNumber == currentFrame);
+
+                if (newKeyframeIndex >= 0)
+                {
+                    // Calculate interpolated position and copy rotation from previous keyframe
+                    Vector3 interpolatedPosition = Vector3.zero;
+                    Vector3 copiedRotation = Vector3.zero;
+
+                    // Find preceding keyframe
+                    BvhKeyframe prevKeyframe = newKeyframeIndex > 0 ? sortedKeyframes[newKeyframeIndex - 1] : null;
+                    // Find following keyframe
+                    BvhKeyframe nextKeyframe = newKeyframeIndex < sortedKeyframes.Count - 1 ? sortedKeyframes[newKeyframeIndex + 1] : null;
+
+                    if (prevKeyframe != null && nextKeyframe != null)
+                    {
+                        // Interpolate position between prev and next
+                        double timeDelta = nextKeyframe.timelineTime - prevKeyframe.timelineTime;
+                        if (timeDelta > 0)
+                        {
+                            double t = (currentTime - prevKeyframe.timelineTime) / timeDelta;
+                            t = Mathf.Clamp01((float)t);
+                            interpolatedPosition = Vector3.Lerp(prevKeyframe.anchorPositionRelative, nextKeyframe.anchorPositionRelative, (float)t);
+                        }
+                        else
+                        {
+                            interpolatedPosition = prevKeyframe.anchorPositionRelative;
+                        }
+                        // Copy rotation from previous keyframe
+                        copiedRotation = prevKeyframe.anchorRotationRelative;
+                    }
+                    else if (prevKeyframe != null)
+                    {
+                        // Only previous exists - copy both
+                        interpolatedPosition = prevKeyframe.anchorPositionRelative;
+                        copiedRotation = prevKeyframe.anchorRotationRelative;
+                    }
+                    else if (nextKeyframe != null)
+                    {
+                        // Only next exists - copy both
+                        interpolatedPosition = nextKeyframe.anchorPositionRelative;
+                        copiedRotation = nextKeyframe.anchorRotationRelative;
+                    }
+                    // else: no other keyframes, leave at (0,0,0)
+
+                    // Update the new keyframe with calculated values
+                    sortedKeyframes[newKeyframeIndex].anchorPositionRelative = interpolatedPosition;
+                    sortedKeyframes[newKeyframeIndex].anchorRotationRelative = copiedRotation;
+                }
+
+                // Mark as dirty to save changes
+                EditorUtility.SetDirty(driftCorrectionData);
 
                 Debug.Log($"[BvhPlaybackCorrectionKeyframesEditor] Auto-filled new keyframe: " +
                           $"time={currentTime:F2}s, frame={currentFrame}");

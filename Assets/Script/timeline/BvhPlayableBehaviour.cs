@@ -74,8 +74,11 @@ public class BvhPlayableBehaviour : PlayableBehaviour
         // Use BvhPlaybackFrameMapper to calculate target frame (handles keyframe interpolation)
         int targetFrame = frameMapper.GetTargetFrameForTime(timelineTime, bvhData, driftCorrectionData);
 
+        // Check if frame changed
+        bool frameChanged = (targetFrame != currentFrame);
+
         // Only update if frame changed
-        if (targetFrame != currentFrame)
+        if (frameChanged)
         {
             ApplyFrame(targetFrame);
             currentFrame = targetFrame;
@@ -86,6 +89,13 @@ public class BvhPlayableBehaviour : PlayableBehaviour
         Quaternion correctedRot = BvhPlaybackTransformCorrector.GetCorrectedRootRotation(timelineTime, driftCorrectionData, rotationOffset);
         BvhCharacterTransform.SetLocalPositionAndRotation(correctedPos, correctedRot);
         BvhCharacterTransform.localScale = scale;
+
+        // Check if exporting and trigger export if needed
+        if (TimelineDrivenSceneFlowExporter.Instance != null &&
+            TimelineDrivenSceneFlowExporter.Instance.ShouldExportFrame(currentFrame))
+        {
+            TimelineDrivenSceneFlowExporter.Instance.ExportCurrentFrame(currentFrame, timelineTime);
+        }
     }
 
     /// <summary>
@@ -99,8 +109,6 @@ public class BvhPlayableBehaviour : PlayableBehaviour
             positionOffset = config.BvhPositionOffset;
             rotationOffset = config.BvhRotationOffset;
             scale = config.BvhScale;
-
-            Debug.Log($"[BvhPlayableBehaviour] UpdateTransformSettings: pos={positionOffset}, rot={rotationOffset}, scale={scale}");
         }
     }
 

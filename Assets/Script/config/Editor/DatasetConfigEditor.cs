@@ -48,15 +48,6 @@ public class DatasetConfigEditor : Editor
             ExportCurrentFrameWithSceneFlow();
         }
 
-        EditorGUILayout.Space(5);
-
-        // Export All Frames with Scene Flow button
-        if (GUILayout.Button("Export All Frames with Scene Flow", GUILayout.Height(30)))
-        {
-            Debug.Log("Export All Frames with Scene Flow button clicked!");
-            ExportAllFramesWithSceneFlow();
-        }
-
         EditorGUI.EndDisabledGroup();
 
         if (!Application.isPlaying)

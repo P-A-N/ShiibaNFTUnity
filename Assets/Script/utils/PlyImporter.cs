@@ -127,7 +127,6 @@ public static class PlyImporter
                 mesh.SetIndices(indices, MeshTopology.Points, 0);
                 mesh.RecalculateBounds();
 
-                Debug.Log($"Successfully imported {vertexCount} points {(hasMotionVectors ? "with motion vectors " : "")}from: {filePath}");
                 return mesh;
             }
         }

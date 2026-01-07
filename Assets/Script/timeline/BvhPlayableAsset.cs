@@ -149,7 +149,42 @@ public class BvhPlayableAsset : PlayableAsset, ITimelineClipAsset
 
         if (cachedBvhData != null)
         {
-            Debug.Log($"BvhPlayableAsset: Loaded BVH file:\n{cachedBvhData.GetSummary()}");
+            Debug.Log($"[BvhPlayableAsset] ✓ Loaded BVH file for Timeline playback");
+            Debug.Log($"[BvhPlayableAsset]   BVH File: {filePath}");
+            Debug.Log($"[BvhPlayableAsset]   Frame Count: {cachedBvhData.FrameCount}, Frame Time: {cachedBvhData.FrameTime}s, FPS: {1f / cachedBvhData.FrameTime:F2}");
+
+            // IMPORTANT: Sync with BvhDataCache so SceneFlowCalculator can access the same BVH data
+            // This ensures Timeline and SceneFlowCalculator use the same BvhData instance
+            if (!BvhDataCache.IsBvhDataCached())
+            {
+                Debug.Log($"[BvhPlayableAsset] Initializing BvhDataCache with Timeline BVH data");
+                DatasetConfig config = DatasetConfig.GetInstance();
+                if (config != null)
+                {
+                    BvhDataCache.InitializeWithConfig(config);
+                }
+            }
+
+            // Check if this matches BvhDataCache
+            string cachedPath = BvhDataCache.GetCachedBvhPath();
+            if (cachedPath == filePath)
+            {
+                Debug.Log($"[BvhPlayableAsset] ✓ File path MATCHES BvhDataCache");
+            }
+            else
+            {
+                Debug.LogWarning($"[BvhPlayableAsset] ⚠ File path MISMATCH!");
+                Debug.LogWarning($"[BvhPlayableAsset]   Timeline uses: {filePath}");
+                Debug.LogWarning($"[BvhPlayableAsset]   BvhDataCache uses: {cachedPath}");
+                Debug.LogWarning($"[BvhPlayableAsset]   SceneFlowCalculator will use a DIFFERENT BVH file!");
+                Debug.LogWarning($"[BvhPlayableAsset]   Re-initializing BvhDataCache...");
+                DatasetConfig config = DatasetConfig.GetInstance();
+                if (config != null)
+                {
+                    BvhDataCache.ClearCache();
+                    BvhDataCache.InitializeWithConfig(config);
+                }
+            }
         }
 
         return cachedBvhData;
