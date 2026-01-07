@@ -157,6 +157,10 @@ public class SceneFlowCalculator : MonoBehaviour
     private int lastCurrentBvhFrame = -1;
     private int lastPreviousBvhFrame = -1;
 
+    // Comparison counter (run every N frames)
+    private int comparisonCounter = 0;
+    private const int COMPARISON_INTERVAL = 30;
+
 
     /// <summary>
     /// Clear all cached frame data
@@ -252,6 +256,8 @@ public class SceneFlowCalculator : MonoBehaviour
         int currentFrameIndex = GetBvhFrameIndexMapped();
         currentFrameTime = TimelineUtil.GetCurrentTimelineTime();
 
+        Debug.Log($"[SceneFlowCalculator] Current Timeline time: {currentFrameTime:F3}s, BVH frame: {currentFrameIndex}");
+
         // Store for external access (e.g., exporter logging)
         lastCurrentBvhFrame = currentFrameIndex;
 
@@ -279,12 +285,21 @@ public class SceneFlowCalculator : MonoBehaviour
             // Calculate previous BVH frame index based on point cloud frame offset
             // This maps point cloud frame N-offset back to corresponding BVH frame
             int previousFrameIndex = GetPreviousPointCloudFrame(currentFrameIndex);
-            float previousFrameTime = previousFrameIndex * bvhData.FrameTime;
+
+            // Calculate Timeline time for previous frame
+            // We need to go back by the scene flow frame offset in PLY frames
+            DatasetConfig config = DatasetConfig.GetInstance();
+            int frameOffset = config != null ? config.SceneFlowFrameOffset : 1;
+
+            // Get the PLY frame rate to calculate proper time offset
+            float plyFrameRate = GetPlyFrameRate();
+            float timeOffsetInSeconds = frameOffset / plyFrameRate;
+            float previousFrameTime = (float)currentFrameTime - timeOffsetInSeconds;
 
             // Store for external access (e.g., exporter logging)
             lastPreviousBvhFrame = previousFrameIndex;
 
-            Debug.Log($"[SceneFlowCalculator] PreviousFrameBVH → Frame {previousFrameIndex}");
+            Debug.Log($"[SceneFlowCalculator] CurrentFrameIndex → Frame {currentFrameIndex} PreviousFrameBVH → Frame {previousFrameIndex} at Timeline time {previousFrameTime:F3}s (current={currentFrameTime:F3}s - offset={timeOffsetInSeconds:F3}s)");
 
             DisplayBvhFrame("PreviousFrameBVH", previousFrameIndex, previousFrameTime,
                            positionOffset, rotationOffset, bvhScale, driftCorrectionData);
@@ -399,8 +414,13 @@ public class SceneFlowCalculator : MonoBehaviour
             return;
         }
 
-        // Compare CurrentFrameBVH with BVH_Visuals before starting nearest neighbor search
-        CompareCurrentFrameWithBvhVisuals();
+        // Compare CurrentFrameBVH with BVH_Visuals before starting nearest neighbor search (every 30 frames)
+        comparisonCounter++;
+        if (comparisonCounter >= COMPARISON_INTERVAL)
+        {
+            comparisonCounter = 0;
+            CompareCurrentFrameWithBvhVisuals();
+        }
 
         Debug.Log($"[SceneFlowCalculator] Starting nearest neighbor search: {vertices.Length} points × {segments.Length} bone segments (K={kNearestNeighbors})");
 
@@ -541,6 +561,47 @@ public class SceneFlowCalculator : MonoBehaviour
 
         Debug.LogWarning("[SceneFlowCalculator] Could not find BvhPlaybackCorrectionKeyframes from Timeline or DatasetConfig");
         return null;
+    }
+
+    /// <summary>
+    /// Get the PLY frame rate from Timeline's PointCloudPlayableAsset
+    /// Returns 30fps as fallback if not found
+    /// </summary>
+    private float GetPlyFrameRate()
+    {
+        // Try to find from Timeline
+        var timelineController = FindFirstObjectByType<TimelineController>();
+        if (timelineController != null)
+        {
+            var director = timelineController.GetComponent<PlayableDirector>();
+            if (director != null && director.playableAsset is TimelineAsset timelineAsset)
+            {
+                foreach (var track in timelineAsset.GetOutputTracks())
+                {
+                    foreach (var clip in track.GetClips())
+                    {
+                        if (clip.asset is PointCloudPlayableAsset pcAsset)
+                        {
+                            // Extract private frameRate field via reflection
+                            var frameRateField = typeof(PointCloudPlayableAsset).GetField(
+                                "frameRate",
+                                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
+                            );
+
+                            if (frameRateField != null)
+                            {
+                                float frameRate = (float)frameRateField.GetValue(pcAsset);
+                                return frameRate;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback to 30fps
+        Debug.LogWarning("[SceneFlowCalculator] Could not find PLY frame rate from Timeline, using default 30fps");
+        return 30f;
     }
 
     /// <summary>
@@ -1532,9 +1593,8 @@ public class SceneFlowCalculator : MonoBehaviour
         // Get the actual BVH root joint (should match bvhVisualsRoot.name)
         Transform currentFrameBvhRoot = tempSkeletonRoot.GetChild(0);
 
-        Debug.Log($"[SceneFlowCalculator] === Comparing Joint Positions ===");
-        Debug.Log($"[SceneFlowCalculator] BVH_Visuals root: {bvhVisualsRoot.name} at {bvhVisualsRoot.position}");
-        Debug.Log($"[SceneFlowCalculator] CurrentFrameBVH root: {currentFrameBvhRoot.name} at {currentFrameBvhRoot.position}");
+        Debug.Log($"[SceneFlowCalculator Comparison Joint Positions] BVH_Visuals root: {bvhVisualsRoot.name} at {bvhVisualsRoot.position}");
+        Debug.Log($"[SceneFlowCalculator Comparison Joint Positions] CurrentFrameBVH root: {currentFrameBvhRoot.name} at {currentFrameBvhRoot.position}");
 
         int totalJoints = 0;
         int matchingJoints = 0;
@@ -1544,11 +1604,10 @@ public class SceneFlowCalculator : MonoBehaviour
         // Recursively compare all joints
         CompareJointRecursive(bvhVisualsRoot, currentFrameBvhRoot, ref totalJoints, ref matchingJoints, ref maxPositionError, ref maxErrorJoint);
 
-        Debug.Log($"[SceneFlowCalculator] === Comparison Results ===");
-        Debug.Log($"[SceneFlowCalculator] Total joints compared: {totalJoints}");
-        Debug.Log($"[SceneFlowCalculator] Matching positions (< 0.0001m): {matchingJoints}");
-        Debug.Log($"[SceneFlowCalculator] Mismatched positions: {totalJoints - matchingJoints}");
-        Debug.Log($"[SceneFlowCalculator] Max position error: {maxPositionError:F6}m at joint '{maxErrorJoint}'");
+        Debug.Log($"[SceneFlowCalculator Comparison Results] Total joints compared: {totalJoints}");
+        Debug.Log($"[SceneFlowCalculator Comparison Results] Matching positions (< 0.0001m): {matchingJoints}");
+        Debug.Log($"[SceneFlowCalculator Comparison Results] Mismatched positions: {totalJoints - matchingJoints}");
+        Debug.Log($"[SceneFlowCalculator Comparison Results] Max position error: {maxPositionError:F6}m at joint '{maxErrorJoint}'");
 
         if (matchingJoints == totalJoints)
         {

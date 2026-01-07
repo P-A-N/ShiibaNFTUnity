@@ -86,7 +86,6 @@ public class BvhTransformSync : MonoBehaviour
 
     private void OnTransformChanged()
     {
-        Debug.Log("[BvhTransformSync] Detected BVH transform change, updating...");
         // Only update if we have valid references
         if (bvhCharacterTransform == null)
         {
@@ -128,8 +127,6 @@ public class BvhTransformSync : MonoBehaviour
         // Apply transform
         bvhCharacterTransform.SetLocalPositionAndRotation(correctedPos, correctedRot);
         bvhCharacterTransform.localScale = config.BvhScale;
-
-        Debug.Log($"[BvhTransformSync] Updated BVH_Character: pos={correctedPos}, rot={correctedRot.eulerAngles}, scale={config.BvhScale}");
 
 #if UNITY_EDITOR
         // Mark scene as dirty so changes are visible in Edit mode

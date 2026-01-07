@@ -23,13 +23,14 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
     // Singleton instance for access from BvhPlayableBehaviour
     public static TimelineDrivenSceneFlowExporter Instance { get; private set; }
 
+
     [Header("References")]
     [SerializeField] private SceneFlowCalculator sceneFlowCalculator;
 
     [Header("Navigation Settings")]
     [SerializeField]
-    [Tooltip("Enable arrow key navigation to move through frames")]
-    private bool enableArrowKeyNavigation = true;
+    [Tooltip("Enable automatic scene flow calculation when navigating with arrow keys")]
+    private bool autoCalculateOnFrameStep = true;
 
     [SerializeField]
     [Tooltip("Number of frames to skip with arrow keys")]
@@ -49,10 +50,37 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
         Instance = this;
     }
 
+    private void OnEnable()
+    {
+        // Subscribe to TimelineController's frame step event
+        TimelineController.OnFrameStepped += OnFrameStepped;
+    }
+
+    private void OnDisable()
+    {
+        // Unsubscribe from event
+        TimelineController.OnFrameStepped -= OnFrameStepped;
+    }
+
     private void OnDestroy()
     {
         if (Instance == this)
             Instance = null;
+    }
+
+    /// <summary>
+    /// Called when TimelineController steps to a new frame (arrow key navigation)
+    /// </summary>
+    private void OnFrameStepped()
+    {
+        if (!autoCalculateOnFrameStep || isExporting)
+            return;
+
+        // Calculate scene flow for the new frame
+        if (sceneFlowCalculator != null)
+        {
+            sceneFlowCalculator.CalculateSceneFlow();
+        }
     }
 
     private void Start()
@@ -74,48 +102,21 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
 
         // Extract PLY frame rate
         ExtractPlyFrameRate();
+
+        // Initialize currentNavigationFrame from timeline position
+        SyncNavigationFrameFromTimeline();
     }
 
-    private void Update()
+
+    /// <summary>
+    /// Synchronize currentNavigationFrame with the actual timeline position
+    /// </summary>
+    private void SyncNavigationFrameFromTimeline()
     {
-        // Handle arrow key navigation (only when not exporting)
-        if (!enableArrowKeyNavigation || isExporting)
+        if (timeline == null || plyFrameRate <= 0)
             return;
 
-        var keyboard = Keyboard.current;
-        if (keyboard == null)
-            return;
-
-        // Right Arrow: Next frame(s)
-        if (keyboard.rightArrowKey.wasPressedThisFrame)
-        {
-            StartCoroutine(NavigateToFrameCoroutine(currentNavigationFrame + frameSkipAmount));
-        }
-        // Left Arrow: Previous frame(s)
-        else if (keyboard.leftArrowKey.wasPressedThisFrame)
-        {
-            StartCoroutine(NavigateToFrameCoroutine(currentNavigationFrame - frameSkipAmount));
-        }
-        // Page Down: Jump forward 10 frames
-        else if (keyboard.pageDownKey.wasPressedThisFrame)
-        {
-            StartCoroutine(NavigateToFrameCoroutine(currentNavigationFrame + 10));
-        }
-        // Page Up: Jump backward 10 frames
-        else if (keyboard.pageUpKey.wasPressedThisFrame)
-        {
-            StartCoroutine(NavigateToFrameCoroutine(currentNavigationFrame - 10));
-        }
-        // Home: Go to start frame
-        else if (keyboard.homeKey.wasPressedThisFrame)
-        {
-            StartCoroutine(NavigateToFrameCoroutine(datasetConfig != null ? datasetConfig.SceneFlowStartFrame : 0));
-        }
-        // End: Go to end frame
-        else if (keyboard.endKey.wasPressedThisFrame)
-        {
-            StartCoroutine(NavigateToFrameCoroutine(datasetConfig != null ? datasetConfig.SceneFlowEndFrame : 0));
-        }
+        currentNavigationFrame = Mathf.FloorToInt((float)timeline.time * plyFrameRate);
     }
 
     /// <summary>
@@ -272,7 +273,7 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
         lastExportedPlyFrame = plyFrame;
 
         // Check if already exported (skip existing)
-        string filename = $"frame_{plyFrame:D4}.ply";
+        string filename = $"{datasetConfig.DatasetName}_sf_{plyFrame:D6}.ply";
         string exportPath = GetExportPath();
         string fullPath = Path.Combine(exportPath, filename);
 
@@ -287,7 +288,7 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
         PerformExport(bvhFrame, plyFrame, fullPath);
     }
 
-    /// <summary>
+    /// <summary>   
     /// Core export logic (called by both normal and debug paths)
     /// </summary>
     private void PerformExport(int bvhFrame, int plyFrame, string fullPath)

@@ -8,6 +8,12 @@ public class TimelineController : MonoBehaviour
     [Header("Timeline Control")]
     [SerializeField] private PlayableDirector timeline;
     [SerializeField] private bool findTimelineAutomatically = true;
+
+    /// <summary>
+    /// Event fired after frame step navigation (arrow keys)
+    /// Subscribers can use this to perform additional processing after frame change
+    /// </summary>
+    public static event System.Action OnFrameStepped;
     
     [Header("Input Settings")]
     [SerializeField] private Key playPauseKey = Key.Space;
@@ -130,12 +136,14 @@ public class TimelineController : MonoBehaviour
         if (Keyboard.current.rightArrowKey.wasPressedThisFrame)
         {
             StepFrameForward();
+            OnFrameStepped?.Invoke();
         }
 
         // Left Arrow: Step backward one frame (delegates to processing mode handler)
         if (Keyboard.current.leftArrowKey.wasPressedThisFrame)
         {
             StepFrameBackward();
+            OnFrameStepped?.Invoke();
         }
     }
     
@@ -523,6 +531,7 @@ public class TimelineController : MonoBehaviour
     public bool IsPlaying => timeline != null && timeline.state == PlayState.Playing;
     public double CurrentTime => timeline != null ? timeline.time : 0;
     public double Duration => timeline != null && timeline.playableAsset != null ? timeline.playableAsset.duration : 0;
+
 
     /// <summary>
     /// Set timeline duration based on total frame count and FPS (for PointCloud)
