@@ -5,7 +5,8 @@
       "Bash(\"C:\\\\Program Files\\\\Unity\\\\Hub\\\\Editor\\\\6000.1.10f1\\\\Editor\\\\Unity.exe\" -batchmode -nographics -projectPath . -executeMethod UnityEditor.EditorApplication.ExecuteMenuItem -quit -logFile -)",
       "Bash(Select-String -Pattern \"error CS\" -Context 2,2)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix frame calculation precision and enhance PLY export\n\n- Use RoundToInt instead of FloorToInt for frame calculations to avoid\n  floating-point precision issues \\(e.g., 493/30*30 = 492.999... flooring to 492\\)\n- Auto-resolve endFrame=0 to total frame count in scene flow exporter\n- Add PLY header comments with frame metadata and torso_7 global position\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix frame calculation precision and enhance PLY export\n\n- Use RoundToInt instead of FloorToInt for frame calculations to avoid\n  floating-point precision issues \\(e.g., 493/30*30 = 492.999... flooring to 492\\)\n- Auto-resolve endFrame=0 to total frame count in scene flow exporter\n- Add PLY header comments with frame metadata and torso_7 global position\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git ls-tree:*)"
     ]
   }
 }

@@ -1739,6 +1739,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   segmentsPerBone: 10
   debugMode: 1
+  showDualBvhVisualization: 1
   showPointCloudMotionVectors: 1
   pointCloudArrowScale: 0.1
   maxPointsToVisualize: 10000
@@ -1760,7 +1761,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sceneFlowCalculator: {fileID: 1682045483}
-  enableArrowKeyNavigation: 1
+  autoCalculateOnFrameStep: 1
   frameSkipAmount: 1
 --- !u!114 &1682045485
 MonoBehaviour:

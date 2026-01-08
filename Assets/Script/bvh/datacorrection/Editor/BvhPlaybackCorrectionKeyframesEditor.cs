@@ -110,7 +110,9 @@ public class BvhPlaybackCorrectionKeyframesEditor : Editor
                 EditorGUILayout.BeginHorizontal();
 
                 // ボタン: クリックでタイムラインジャンプ
-                string buttonLabel = $"Frame {i}: {keyframe.timelineTime:F2}s (#{keyframe.bvhFrameNumber})";
+                // Calculate Timeline frame number (assuming 30fps standard)
+                int timelineFrameNumber = Mathf.FloorToInt((float)keyframe.timelineTime * 30f);
+                string buttonLabel = $"Frame {i}: {keyframe.timelineTime:F2}s (#Timeline:{timelineFrameNumber})";
 
                 if (GUILayout.Button(buttonLabel, GUILayout.Height(30)))
                 {

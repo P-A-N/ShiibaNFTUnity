@@ -24,8 +24,8 @@ MonoBehaviour:
   showDownsampledPointCloud: 0
   skipExistingPlyFiles: 1
   sceneFlowExportDirectory: ExportedPLY_SceneFlow
-  sceneFlowStartFrame: 1920
-  sceneFlowEndFrame: 2020
+  sceneFlowStartFrame: 1
+  sceneFlowEndFrame: 0
   sceneFlowExportAsAscii: 0
   sceneFlowSkipExistingFiles: 0
   sceneFlowFrameOffset: 2
