@@ -408,151 +408,19 @@ public class BvhPlaybackCorrectionKeyframesEditor : Editor
     }
 
     /// <summary>
-    /// Sorts keyframes array by timeline time
-    /// </summary>
-    private void SortKeyframesByTime()
-    {
-        var keyframes = driftCorrectionData.GetAllKeyframes();
-        var sortedKeyframes = keyframes.OrderBy(k => k.timelineTime).ToList();
-
-        // Clear and repopulate the serialized array
-        keyframesProperty.ClearArray();
-        for (int i = 0; i < sortedKeyframes.Count; i++)
-        {
-            keyframesProperty.InsertArrayElementAtIndex(i);
-            SerializedProperty element = keyframesProperty.GetArrayElementAtIndex(i);
-
-            element.FindPropertyRelative("timelineTime").doubleValue = sortedKeyframes[i].timelineTime;
-            element.FindPropertyRelative("bvhFrameNumber").intValue = sortedKeyframes[i].bvhFrameNumber;
-            element.FindPropertyRelative("anchorPositionRelative").vector3Value = sortedKeyframes[i].anchorPositionRelative;
-            element.FindPropertyRelative("anchorRotationRelative").vector3Value = sortedKeyframes[i].anchorRotationRelative;
-            element.FindPropertyRelative("note").stringValue = sortedKeyframes[i].note;
-        }
-    }
-
-    /// <summary>
-    /// Detects when a new keyframe is added via the "+" button in the Inspector
-    /// Automatically fills in current timeline time, BVH frame, position, and rotation
+    /// Detects when keyframes are added/removed via the Inspector's array UI
+    /// Simply updates the tracking count - no auto-fill or sorting to avoid synchronization issues
+    /// Use Shift+A in Play mode to add keyframes with auto-fill functionality
     /// </summary>
     private void DetectNewKeyframeAdded()
     {
-        int currentKeyframeCount = driftCorrectionData.GetKeyframeCount();
+        // Use serialized property array size to detect changes
+        int serializedArraySize = keyframesProperty.arraySize;
 
-        // Check if array size increased (new keyframe added)
-        if (currentKeyframeCount > previousKeyframeCount)
+        // Just update tracking when count changes
+        if (serializedArraySize != previousKeyframeCount)
         {
-            // Get the newly added keyframe (last in list)
-            var keyframes = driftCorrectionData.GetAllKeyframes();
-            if (keyframes.Count > 0)
-            {
-                BvhKeyframe newKeyframe = keyframes[keyframes.Count - 1];
-
-                // Get current timeline time
-                PlayableDirector timeline = FindFirstObjectByType<PlayableDirector>();
-                double currentTime = timeline != null ? timeline.time : 0.0;
-
-                // Get BVH playable asset and current frame
-                var bvhAsset = Resources.FindObjectsOfTypeAll<BvhPlayableAsset>().FirstOrDefault();
-                int currentFrame = 0;
-
-                if (bvhAsset != null)
-                {
-                    // Get current frame from BvhPlayableBehaviour
-                    var bvhBehaviour = bvhAsset.GetBvhPlayableBehaviour();
-                    if (bvhBehaviour != null)
-                    {
-                        currentFrame = bvhBehaviour.GetCurrentFrame();
-                    }
-
-                    // If frame is -1 (uninitialized), calculate from time
-                    if (currentFrame == -1)
-                    {
-                        BvhData bvhData = bvhAsset.GetBvhData();
-                        float bvhFrameRate = bvhData != null ? bvhData.FrameRate : 30f;
-                        currentFrame = Mathf.FloorToInt((float)(currentTime * bvhFrameRate));
-                    }
-                }
-
-                // Update the new keyframe with current time and frame
-                newKeyframe.timelineTime = currentTime;
-                newKeyframe.bvhFrameNumber = currentFrame;
-
-                // Sort keyframes first to determine position in the sorted list
-                serializedObject.ApplyModifiedPropertiesWithoutUndo();
-                SortKeyframesByTime();
-                serializedObject.ApplyModifiedPropertiesWithoutUndo();
-
-                // After sorting, get sorted list and find the new keyframe's position
-                var sortedKeyframes = driftCorrectionData.GetAllKeyframes();
-                int newKeyframeIndex = sortedKeyframes.FindIndex(kf =>
-                    Mathf.Approximately((float)kf.timelineTime, (float)currentTime) &&
-                    kf.bvhFrameNumber == currentFrame);
-
-                if (newKeyframeIndex >= 0)
-                {
-                    // Calculate interpolated position and copy rotation from previous keyframe
-                    Vector3 interpolatedPosition = Vector3.zero;
-                    Vector3 copiedRotation = Vector3.zero;
-
-                    // Find preceding keyframe
-                    BvhKeyframe prevKeyframe = newKeyframeIndex > 0 ? sortedKeyframes[newKeyframeIndex - 1] : null;
-                    // Find following keyframe
-                    BvhKeyframe nextKeyframe = newKeyframeIndex < sortedKeyframes.Count - 1 ? sortedKeyframes[newKeyframeIndex + 1] : null;
-
-                    if (prevKeyframe != null && nextKeyframe != null)
-                    {
-                        // Interpolate position between prev and next
-                        double timeDelta = nextKeyframe.timelineTime - prevKeyframe.timelineTime;
-                        if (timeDelta > 0)
-                        {
-                            double t = (currentTime - prevKeyframe.timelineTime) / timeDelta;
-                            t = Mathf.Clamp01((float)t);
-                            interpolatedPosition = Vector3.Lerp(prevKeyframe.anchorPositionRelative, nextKeyframe.anchorPositionRelative, (float)t);
-                        }
-                        else
-                        {
-                            interpolatedPosition = prevKeyframe.anchorPositionRelative;
-                        }
-                        // Copy rotation from previous keyframe
-                        copiedRotation = prevKeyframe.anchorRotationRelative;
-                    }
-                    else if (prevKeyframe != null)
-                    {
-                        // Only previous exists - copy both
-                        interpolatedPosition = prevKeyframe.anchorPositionRelative;
-                        copiedRotation = prevKeyframe.anchorRotationRelative;
-                    }
-                    else if (nextKeyframe != null)
-                    {
-                        // Only next exists - copy both
-                        interpolatedPosition = nextKeyframe.anchorPositionRelative;
-                        copiedRotation = nextKeyframe.anchorRotationRelative;
-                    }
-                    // else: no other keyframes, leave at (0,0,0)
-
-                    // Update the new keyframe with calculated values
-                    sortedKeyframes[newKeyframeIndex].anchorPositionRelative = interpolatedPosition;
-                    sortedKeyframes[newKeyframeIndex].anchorRotationRelative = copiedRotation;
-                }
-
-                // Mark as dirty to save changes
-                EditorUtility.SetDirty(driftCorrectionData);
-
-                Debug.Log($"[BvhPlaybackCorrectionKeyframesEditor] Auto-filled new keyframe: " +
-                          $"time={currentTime:F2}s, frame={currentFrame}");
-            }
-
-            // Update the previous count
-            previousKeyframeCount = currentKeyframeCount;
-
-            // Refresh caches
-            RefreshKeyframePositionCache();
-            RefreshKeyframeRotationCache();
-        }
-        // Check if keyframe was removed
-        else if (currentKeyframeCount < previousKeyframeCount)
-        {
-            previousKeyframeCount = currentKeyframeCount;
+            previousKeyframeCount = serializedArraySize;
             RefreshKeyframePositionCache();
             RefreshKeyframeRotationCache();
         }
