@@ -44,6 +44,8 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
     private float plyFrameRate;
     private int currentNavigationFrame = 0;
     private int lastExportedPlyFrame = -1; // Track last exported frame to avoid duplicates
+    private int resolvedStartFrame = -1; // Resolved start frame for export (set in ExportCoroutine)
+    private int resolvedEndFrame = -1; // Resolved end frame for export (set in ExportCoroutine)
 
     private void Awake()
     {
@@ -116,7 +118,8 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
         if (timeline == null || plyFrameRate <= 0)
             return;
 
-        currentNavigationFrame = Mathf.FloorToInt((float)timeline.time * plyFrameRate);
+        // Use RoundToInt to avoid floating-point precision issues
+        currentNavigationFrame = Mathf.RoundToInt((float)timeline.time * plyFrameRate);
     }
 
     /// <summary>
@@ -254,12 +257,14 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
     public void ExportCurrentFrame(int bvhFrame, float timelineTime)
     {
         // Calculate corresponding PLY frame
-        int plyFrame = Mathf.FloorToInt(timelineTime * plyFrameRate);
+        // Use RoundToInt instead of FloorToInt to avoid floating-point precision issues
+        // (e.g., 493/30*30 = 492.999... which floors to 492)
+        int plyFrame = Mathf.RoundToInt(timelineTime * plyFrameRate);
 
-        // Check if within export range
-        if (plyFrame < datasetConfig.SceneFlowStartFrame || plyFrame > datasetConfig.SceneFlowEndFrame)
+        // Check if within export range (use resolved values set in ExportCoroutine)
+        if (plyFrame < resolvedStartFrame || plyFrame > resolvedEndFrame)
         {
-            Debug.Log($"[TimelineDrivenSceneFlowExporter] Skipping frame {plyFrame} (outside range {datasetConfig.SceneFlowStartFrame}-{datasetConfig.SceneFlowEndFrame})");
+            Debug.Log($"[TimelineDrivenSceneFlowExporter] Skipping frame {plyFrame} (outside range {resolvedStartFrame}-{resolvedEndFrame})");
             return;
         }
 
@@ -312,11 +317,14 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
             return;
         }
 
+        // Build header comments with frame metadata
+        string[] headerComments = BuildHeaderComments(plyFrame, bvhFrame);
+
         // Export PLY
         if (datasetConfig.SceneFlowExportAsAscii)
-            PlyExporter.ExportToPLY_ASCII(currentMesh, motionVectors, fullPath, null);
+            PlyExporter.ExportToPLY_ASCII(currentMesh, motionVectors, fullPath, headerComments);
         else
-            PlyExporter.ExportToPLY(currentMesh, motionVectors, fullPath, null);
+            PlyExporter.ExportToPLY(currentMesh, motionVectors, fullPath, headerComments);
 
         Debug.Log($"[TimelineDrivenSceneFlowExporter] Exported frame {plyFrame} (BVH frame {bvhFrame})");
     }
@@ -349,6 +357,38 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
         int startFrame = datasetConfig.SceneFlowStartFrame;
         int endFrame = datasetConfig.SceneFlowEndFrame;
         int frameOffset = datasetConfig.SceneFlowFrameOffset;
+
+        // Resolve endFrame = 0 to total frame count
+        if (endFrame <= 0)
+        {
+            var manager = FindFirstObjectByType<MultiCameraPointCloudManager>();
+            if (manager != null)
+            {
+                int totalFrameCount = manager.GetTotalFrameCount();
+                Debug.Log($"[TimelineDrivenSceneFlowExporter] GetTotalFrameCount() returned: {totalFrameCount}");
+                if (totalFrameCount > 0)
+                {
+                    endFrame = totalFrameCount - 1; // Frame indices are 0-based, but we start from 1
+                    Debug.Log($"[TimelineDrivenSceneFlowExporter] Resolved endFrame=0 to total frame count: {endFrame}");
+                }
+                else
+                {
+                    Debug.LogError("[TimelineDrivenSceneFlowExporter] Cannot determine total frame count (got 0 or negative)!");
+                    isExporting = false;
+                    yield break;
+                }
+            }
+            else
+            {
+                Debug.LogError("[TimelineDrivenSceneFlowExporter] MultiCameraPointCloudManager not found!");
+                isExporting = false;
+                yield break;
+            }
+        }
+
+        // Store resolved values for ExportCurrentFrame to use
+        resolvedStartFrame = startFrame;
+        resolvedEndFrame = endFrame;
 
         Debug.Log($"[TimelineDrivenSceneFlowExporter] Starting playback-based export from frame {startFrame} to {endFrame}");
         Debug.Log($"[TimelineDrivenSceneFlowExporter] PLY frame rate: {plyFrameRate} fps");
@@ -424,5 +464,70 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
         }
 
         return Path.Combine(datasetFolder, exportDir);
+    }
+
+    /// <summary>
+    /// Build header comments array for PLY export with frame metadata
+    /// </summary>
+    private string[] BuildHeaderComments(int plyFrame, int bvhFrame)
+    {
+        Vector3? torso7Pos = GetTorso7GlobalPosition();
+
+        if (torso7Pos.HasValue)
+        {
+            return new string[]
+            {
+                $"PointCloudFrame: {plyFrame}",
+                $"BvhFrame: {bvhFrame}",
+                $"torso_7_global_position: {torso7Pos.Value.x} {torso7Pos.Value.y} {torso7Pos.Value.z}"
+            };
+        }
+        else
+        {
+            return new string[]
+            {
+                $"PointCloudFrame: {plyFrame}",
+                $"BvhFrame: {bvhFrame}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Get torso_7 joint global position from SceneFlowCalculator's CurrentFrameBVH skeleton
+    /// </summary>
+    private Vector3? GetTorso7GlobalPosition()
+    {
+        if (sceneFlowCalculator == null)
+            return null;
+
+        // Find CurrentFrameBVH container under SceneFlowCalculator
+        Transform currentFrameContainer = sceneFlowCalculator.transform.Find("CurrentFrameBVH");
+        if (currentFrameContainer == null)
+            return null;
+
+        // Navigate to torso_7 joint: CurrentFrameBVH > TempBvhSkeleton_N > root > ... > torso_7
+        Transform torso7 = FindJointRecursive(currentFrameContainer, "torso_7");
+        if (torso7 == null)
+            return null;
+
+        return torso7.position;
+    }
+
+    /// <summary>
+    /// Recursively search for a joint by name in transform hierarchy
+    /// </summary>
+    private Transform FindJointRecursive(Transform parent, string jointName)
+    {
+        if (parent.name == jointName)
+            return parent;
+
+        foreach (Transform child in parent)
+        {
+            Transform found = FindJointRecursive(child, jointName);
+            if (found != null)
+                return found;
+        }
+
+        return null;
     }
 }

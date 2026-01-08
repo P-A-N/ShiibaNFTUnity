@@ -48,7 +48,9 @@ public class PointCloudPlayableBehaviour : PlayableBehaviour
         }
 
         double currentTime = playable.GetTime();
-        int targetFrame = Mathf.FloorToInt((float)(currentTime * frameRate));
+        // Use RoundToInt to avoid floating-point precision issues
+        // (e.g., frame 493: time=493/30=16.4333..., then 16.4333*30=492.999... would floor to 492)
+        int targetFrame = Mathf.RoundToInt((float)(currentTime * frameRate));
 
         if (targetFrame != currentFrame)
         {

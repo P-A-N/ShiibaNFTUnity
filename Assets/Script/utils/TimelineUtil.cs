@@ -36,13 +36,15 @@ public static class TimelineUtil
 
     /// <summary>
     /// Convert timeline time (seconds) to frame index
+    /// Uses RoundToInt to avoid floating-point precision issues when time is set from frame index
+    /// (e.g., frame 493: time=493/30=16.4333..., then 16.4333*30=492.999... would floor to 492)
     /// </summary>
     /// <param name="timelineTime">Time in seconds</param>
     /// <param name="frameRate">Frames per second</param>
-    /// <returns>Frame index (floored)</returns>
+    /// <returns>Frame index (rounded)</returns>
     public static int GetFrameIndexFromTime(double timelineTime, float frameRate)
     {
-        return Mathf.FloorToInt((float)(timelineTime * frameRate));
+        return Mathf.RoundToInt((float)(timelineTime * frameRate));
     }
 
     /// <summary>
