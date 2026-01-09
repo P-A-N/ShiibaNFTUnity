@@ -28,6 +28,11 @@ MonoBehaviour:
     anchorPositionRelative: {x: 0, y: 0, z: 0}
     anchorRotationRelative: {x: 0, y: 0, z: 0}
     note: 
+  - timelineTime: 47.29999923706055
+    bvhFrameNumber: 2365
+    anchorPositionRelative: {x: -0.33, y: 0, z: 0.27}
+    anchorRotationRelative: {x: 0, y: 0, z: 0}
+    note: 
   - timelineTime: 48.4165153503418
     bvhFrameNumber: 2420
     anchorPositionRelative: {x: 0.03, y: 0, z: 0.36}
@@ -48,20 +53,45 @@ MonoBehaviour:
     anchorPositionRelative: {x: 0.2, y: 0, z: 0.59}
     anchorRotationRelative: {x: 0, y: 14.37, z: 0}
     note: 
+  - timelineTime: 106.76667022705078
+    bvhFrameNumber: 5338
+    anchorPositionRelative: {x: -0.03, y: 0, z: 0.36}
+    anchorRotationRelative: {x: 0, y: 0, z: 0}
+    note: 
   - timelineTime: 113.9
     bvhFrameNumber: 5694
     anchorPositionRelative: {x: 0.19, y: 0, z: 0.77}
     anchorRotationRelative: {x: 0, y: 9.15, z: 0}
+    note: 
+  - timelineTime: 114.96666717529297
+    bvhFrameNumber: 5748
+    anchorPositionRelative: {x: -0.19, y: 0, z: 0.42}
+    anchorRotationRelative: {x: 0, y: 0, z: 0}
     note: 
   - timelineTime: 116.23333333333333
     bvhFrameNumber: 5811
     anchorPositionRelative: {x: -0.23, y: 0, z: 0.5}
     anchorRotationRelative: {x: 0, y: 14.37, z: 0}
     note: 
+  - timelineTime: 122.33333587646484
+    bvhFrameNumber: 6116
+    anchorPositionRelative: {x: -0.21, y: 0, z: 0.39}
+    anchorRotationRelative: {x: 5.62, y: 0, z: 0}
+    note: 
+  - timelineTime: 125.43333435058594
+    bvhFrameNumber: 6271
+    anchorPositionRelative: {x: -0.33, y: 0, z: 0.21}
+    anchorRotationRelative: {x: 0, y: 0, z: 0}
+    note: 
   - timelineTime: 130.4
     bvhFrameNumber: 6520
     anchorPositionRelative: {x: -0.01, y: 0, z: 0.29}
     anchorRotationRelative: {x: 0, y: 14.37, z: 0}
+    note: 
+  - timelineTime: 134.13333129882812
+    bvhFrameNumber: 6706
+    anchorPositionRelative: {x: -0.27, y: 0, z: 0.5}
+    anchorRotationRelative: {x: 0, y: 0, z: 0}
     note: 
   - timelineTime: 134.6
     bvhFrameNumber: 6730
@@ -83,6 +113,11 @@ MonoBehaviour:
     anchorPositionRelative: {x: -0.26, y: 0, z: 0.53}
     anchorRotationRelative: {x: 0, y: 9.58, z: 0}
     note: 
+  - timelineTime: 147.60000610351562
+    bvhFrameNumber: 7380
+    anchorPositionRelative: {x: -0.08, y: 0, z: 0.21}
+    anchorRotationRelative: {x: 0, y: 0, z: 0}
+    note: 
   - timelineTime: 149.9
     bvhFrameNumber: 7495
     anchorPositionRelative: {x: 0, y: 0, z: 0.13}
@@ -96,6 +131,41 @@ MonoBehaviour:
   - timelineTime: 186.5
     bvhFrameNumber: 9325
     anchorPositionRelative: {x: -0.33, y: 0, z: 0.44}
+    anchorRotationRelative: {x: 0, y: 0, z: 0}
+    note: 
+  - timelineTime: 189.36666870117188
+    bvhFrameNumber: 9468
+    anchorPositionRelative: {x: -0.22, y: 0, z: 0.49}
+    anchorRotationRelative: {x: 0, y: 7.45, z: 0}
+    note: 
+  - timelineTime: 196.86666870117188
+    bvhFrameNumber: 9843
+    anchorPositionRelative: {x: -0.18, y: 0, z: 0.65}
+    anchorRotationRelative: {x: 0, y: 21.58, z: 0}
+    note: 
+  - timelineTime: 200.26666259765625
+    bvhFrameNumber: 10013
+    anchorPositionRelative: {x: -0.59, y: 0, z: 0.45}
+    anchorRotationRelative: {x: 0, y: 1.68, z: 0}
+    note: 
+  - timelineTime: 202.8333282470703
+    bvhFrameNumber: 10141
+    anchorPositionRelative: {x: -0.21, y: 0, z: 0.9}
+    anchorRotationRelative: {x: 0, y: 34.16, z: 0}
+    note: 
+  - timelineTime: 212.1666717529297
+    bvhFrameNumber: 10608
+    anchorPositionRelative: {x: -0.45, y: 0, z: 0.67}
+    anchorRotationRelative: {x: 0, y: 6.09, z: 0}
+    note: 
+  - timelineTime: 219.43333435058594
+    bvhFrameNumber: 10971
+    anchorPositionRelative: {x: -0.54, y: 0, z: 0.63}
+    anchorRotationRelative: {x: 0, y: 0, z: 0}
+    note: 
+  - timelineTime: 221.63333129882812
+    bvhFrameNumber: 11081
+    anchorPositionRelative: {x: -0.18, y: 0, z: 0.53}
     anchorRotationRelative: {x: 0, y: 0, z: 0}
     note: 
   interpolationType: 0

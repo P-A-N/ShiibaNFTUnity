@@ -18,7 +18,7 @@ MonoBehaviour:
   bvhPositionOffset: {x: 0.21, y: 0.06, z: 0.12}
   bvhRotationOffset: {x: 0, y: -1.55, z: 0}
   bvhScale: {x: 0.01, y: 0.01, z: 0.01}
-  processingType: 3
+  processingType: 4
   binaryDataRootPath: /Volumes/horristicSSD2T/Dropbox/projects/shiiba/datas/2025-04-12_20-17-26_video
   bvhDriftCorrectionData: {fileID: 11400000, guid: 169e14796eda44c03b6daab8f8bedbd7, type: 2}
   showDownsampledPointCloud: 0
@@ -27,5 +27,5 @@ MonoBehaviour:
   sceneFlowStartFrame: 1
   sceneFlowEndFrame: 0
   sceneFlowExportAsAscii: 0
-  sceneFlowSkipExistingFiles: 1
+  sceneFlowSkipExistingFiles: 0
   sceneFlowFrameOffset: 2
