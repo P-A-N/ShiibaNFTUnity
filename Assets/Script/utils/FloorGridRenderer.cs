@@ -10,8 +10,8 @@ public class FloorGridRenderer : MonoBehaviour
     [SerializeField] private bool showGrid = true;
     [SerializeField] private float gridSize = 10f;
     [SerializeField] private float gridSpacing = 0.5f;
-    [SerializeField] private Color gridColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
-    [SerializeField] private Color centerLineColor = new Color(1f, 0f, 0f, 0.5f);
+    [SerializeField] private Color gridColor = new Color(0.5f, 0.5f, 0.5f, 0.6f);
+    [SerializeField] private Color centerLineColor = new Color(1f, 0f, 0f, 1f);
     [SerializeField] private float gridHeight = 0f;
     [SerializeField] private float lineWidth = 1f;
 

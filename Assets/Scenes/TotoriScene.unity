@@ -443,7 +443,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: -0.0003413894, y: -0.9986173, z: 0.052160513, w: -0.006535928}
-  m_LocalPosition: {x: 0.37, y: 1.43, z: 2.34}
+  m_LocalPosition: {x: 0.37, y: 1.8, z: 2.34}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1578,8 +1578,8 @@ MonoBehaviour:
   exportFolderName: PointCloudExport
   useAbsolutePath: 0
   absoluteExportPath: 
-  imageWidth: 1920
-  imageHeight: 1080
+  imageWidth: 3840
+  imageHeight: 2160
   exportWithAlpha: 0
   flipHorizontally: 1
   targetCamera: {fileID: 0}
@@ -1588,7 +1588,10 @@ MonoBehaviour:
   lookAtJointName: torso_7
   startAngle: 0
   endAngle: 360
+  rotationCycles: 1.73
   useInitialCameraDistance: 1
+  enableCameraSmoothing: 1
+  smoothingFactor: 0.05
   showFloorGrid: 1
   floorGrid: {fileID: 0}
   createGridAutomatically: 1

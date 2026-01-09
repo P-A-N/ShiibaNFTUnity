@@ -28,12 +28,14 @@ public class PointCloudFrameExporter : MonoBehaviour
     [SerializeField] private string lookAtJointName = "torso_7";
     [SerializeField] private float startAngle = 0f;
     [SerializeField] private float endAngle = 360f;
+    [Tooltip("Number of full rotations during export (1.0 = one rotation, 2.0 = two rotations)")]
+    [SerializeField] [Range(0.5f, 5f)] private float rotationCycles = 1f;
     [Tooltip("Orbit radius and height are calculated from camera's initial position at export start")]
     [SerializeField] private bool useInitialCameraDistance = true;
 
     [Header("Camera Smoothing")]
     [SerializeField] private bool enableCameraSmoothing = true;
-    [SerializeField] [Range(0.01f, 1f)] private float smoothingFactor = 0.1f; // Lower = smoother (more lag), Higher = faster response
+    [SerializeField] [Range(0.01f, 1f)] private float smoothingFactor = 0.3f; // Lower = smoother (more lag), Higher = faster response
 
     [Header("Floor Grid")]
     [SerializeField] private bool showFloorGrid = true;
@@ -133,10 +135,23 @@ public class PointCloudFrameExporter : MonoBehaviour
 
     private void SetupRenderTextures()
     {
+        // Clean up existing textures if they exist
+        if (renderTexture != null)
+        {
+            renderTexture.Release();
+            Destroy(renderTexture);
+        }
+        if (screenshotTexture != null)
+        {
+            Destroy(screenshotTexture);
+        }
+
         TextureFormat format = exportWithAlpha ? TextureFormat.RGBA32 : TextureFormat.RGB24;
         screenshotTexture = new Texture2D(imageWidth, imageHeight, format, false);
         renderTexture = new RenderTexture(imageWidth, imageHeight, 24);
         renderTexture.antiAliasing = 1;
+
+        Debug.Log($"[PointCloudFrameExporter] Render textures created: {imageWidth}x{imageHeight}");
     }
 
     void Update()
@@ -188,6 +203,9 @@ public class PointCloudFrameExporter : MonoBehaviour
             return;
         }
 
+        // Recreate render textures with current resolution settings
+        SetupRenderTextures();
+
         // Create export directory
         currentExportDirectory = GetExportDirectory();
         if (!Directory.Exists(currentExportDirectory))
@@ -236,6 +254,9 @@ public class PointCloudFrameExporter : MonoBehaviour
             Debug.LogError("[PointCloudFrameExporter] Cannot export: No camera assigned");
             return;
         }
+
+        // Recreate render textures with current resolution settings
+        SetupRenderTextures();
 
         // Create export directory if needed
         if (string.IsNullOrEmpty(currentExportDirectory) || !Directory.Exists(currentExportDirectory))
@@ -415,9 +436,10 @@ public class PointCloudFrameExporter : MonoBehaviour
         float angle;
         if (totalFrames > 1)
         {
-            // Interpolate angle based on frame progress
+            // Interpolate angle based on frame progress, multiplied by rotation cycles
             float progress = (float)currentFrame / (totalFrames - 1);
-            angle = Mathf.Lerp(startAngle, endAngle, progress);
+            float angleRange = (endAngle - startAngle) * rotationCycles;
+            angle = startAngle + angleRange * progress;
         }
         else
         {
@@ -430,7 +452,8 @@ public class PointCloudFrameExporter : MonoBehaviour
         float height = calculatedOrbitHeight;
 
         // Calculate camera position on orbit circle around the target
-        float angleRad = angle * Mathf.Deg2Rad;
+        // Negate angle to rotate in opposite direction (clockwise when viewed from above)
+        float angleRad = -angle * Mathf.Deg2Rad;
         Vector3 offset = new Vector3(
             Mathf.Sin(angleRad) * radius,
             height,
@@ -617,7 +640,8 @@ public class PointCloudFrameExporter : MonoBehaviour
         float height = offset.y;
 
         // Position camera at start angle using the calculated radius/height
-        float angleRad = startAngle * Mathf.Deg2Rad;
+        // Negate angle to match export rotation direction
+        float angleRad = -startAngle * Mathf.Deg2Rad;
         Vector3 newOffset = new Vector3(
             Mathf.Sin(angleRad) * radius,
             height,
@@ -648,6 +672,9 @@ public class PointCloudFrameExporter : MonoBehaviour
     private IEnumerator BatchExportCoroutine()
     {
         Debug.Log("[PointCloudFrameExporter] Starting batch export...");
+
+        // Recreate render textures with current resolution settings
+        SetupRenderTextures();
 
         // Prepare export
         currentExportDirectory = GetExportDirectory();

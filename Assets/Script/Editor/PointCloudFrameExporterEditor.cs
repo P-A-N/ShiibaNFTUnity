@@ -23,6 +23,7 @@ public class PointCloudFrameExporterEditor : Editor
     private SerializedProperty lookAtJointName;
     private SerializedProperty startAngle;
     private SerializedProperty endAngle;
+    private SerializedProperty rotationCycles;
     private SerializedProperty useInitialCameraDistance;
 
     // Camera Smoothing
@@ -57,6 +58,7 @@ public class PointCloudFrameExporterEditor : Editor
         lookAtJointName = serializedObject.FindProperty("lookAtJointName");
         startAngle = serializedObject.FindProperty("startAngle");
         endAngle = serializedObject.FindProperty("endAngle");
+        rotationCycles = serializedObject.FindProperty("rotationCycles");
         useInitialCameraDistance = serializedObject.FindProperty("useInitialCameraDistance");
 
         // Camera Smoothing
@@ -151,6 +153,8 @@ public class PointCloudFrameExporterEditor : Editor
             if (GUILayout.Button("0° → 180°")) { startAngle.floatValue = 0f; endAngle.floatValue = 180f; }
             if (GUILayout.Button("-90° → 90°")) { startAngle.floatValue = -90f; endAngle.floatValue = 90f; }
             EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.PropertyField(rotationCycles, new GUIContent("Rotation Cycles", "Number of full rotations during export (2.0 = twice as fast)"));
 
             EditorGUILayout.HelpBox("Orbit radius and height are calculated from the camera's initial position when export starts.", MessageType.Info);
             EditorGUI.indentLevel--;
