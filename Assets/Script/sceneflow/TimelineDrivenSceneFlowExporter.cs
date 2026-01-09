@@ -175,33 +175,31 @@ public class TimelineDrivenSceneFlowExporter : MonoBehaviour
         }
 
         var timelineAsset = timeline.playableAsset as UnityEngine.Timeline.TimelineAsset;
+
+        // Search ALL tracks for PointCloudPlayableAsset clips (don't filter by track name)
         foreach (var track in timelineAsset.GetOutputTracks())
         {
-            if (track.name.Contains("Point Cloud") || track.GetType().Name.Contains("PointCloud"))
+            foreach (var clip in track.GetClips())
             {
-                var clips = track.GetClips();
-                foreach (var clip in clips)
+                if (clip.asset is PointCloudPlayableAsset pcAsset)
                 {
-                    if (clip.asset is PointCloudPlayableAsset pcAsset)
-                    {
-                        // Extract private frameRate field via reflection
-                        var frameRateField = typeof(PointCloudPlayableAsset).GetField(
-                            "frameRate",
-                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
-                        );
+                    // Extract private frameRate field via reflection
+                    var frameRateField = typeof(PointCloudPlayableAsset).GetField(
+                        "frameRate",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
+                    );
 
-                        if (frameRateField != null)
-                        {
-                            plyFrameRate = (float)frameRateField.GetValue(pcAsset);
-                            Debug.Log($"[TimelineDrivenSceneFlowExporter] PLY frame rate: {plyFrameRate} fps");
-                            return;
-                        }
+                    if (frameRateField != null)
+                    {
+                        plyFrameRate = (float)frameRateField.GetValue(pcAsset);
+                        Debug.Log($"[TimelineDrivenSceneFlowExporter] PLY frame rate: {plyFrameRate} fps (from track: {track.name})");
+                        return;
                     }
                 }
             }
         }
 
-        Debug.LogError("[TimelineDrivenSceneFlowExporter] Could not extract PLY frame rate from Timeline!");
+        Debug.LogWarning("[TimelineDrivenSceneFlowExporter] Could not find PointCloudPlayableAsset in Timeline. Using default 30 fps.");
         plyFrameRate = 30f; // Fallback
     }
 
