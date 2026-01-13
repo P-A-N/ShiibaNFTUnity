@@ -22,10 +22,10 @@ MonoBehaviour:
   binaryDataRootPath: /Volumes/horristicSSD2T/Dropbox/projects/shiiba/20251130/Shibahiki_2025-11-30_10-00-33_video
   bvhDriftCorrectionData: {fileID: 11400000, guid: feba45d7131cb4119b5870894918530f, type: 2}
   showDownsampledPointCloud: 0
-  skipExistingPlyFiles: 1
+  skipExistingPlyFiles: 0
   sceneFlowExportDirectory: ExportedPLY_SceneFlow
   sceneFlowStartFrame: 1
   sceneFlowEndFrame: 0
   sceneFlowExportAsAscii: 0
-  sceneFlowSkipExistingFiles: 1
-  sceneFlowFrameOffset: 1
+  sceneFlowSkipExistingFiles: 0
+  sceneFlowFrameOffset: 2
